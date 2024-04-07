@@ -152,10 +152,10 @@ Please consider supporting this project with [BuyMeACoffee](https://www.buymeaco
 1. Creates a firewall rule to prevent RST packets from interfering with scans
     -Linux: sudo iptables -A INPUT -p tcp --dport 55555 -j DROP
     -Mac: block drop in proto tcp from any to any port 55555" | sudo tee -a /etc/pf.conf >> $filepath/logs/mac-pfctl.log
-2. Masscan alive host discovery (customizable with `--ngineer`)
+2. Masscan alive host discovery
     - sudo masscan --rate=8000 --src-port=55555 --excludefile <$excludes_file> --include-file <$targets_file> -oG <$output_file>
     - Detects total number of targets and adjusts --top-ports number accordingly to keep initial alives scan as quick as possible while remaining accurate
-3. Masscan open ports discovery
+3. Masscan open ports discovery (customizable with `--ngineer`)
     - sudo masscan --open-only -p 1-65535 --rate=8000 --src-port=55555 --excludefile <$excludes_file> --include-file <$targets_file> -oG
 4. UDP alive host/open port scan, if enabled (customizable with `--ngineer`)
     - nmap -v -Pn -sU --open --min-rate 3000 --max-rate 5000 --top-ports 15094 --max-retries 3 --host-timeout 30 -oG <$output_file> --excludefile <$excludes_file> -iL <$targets_file>
