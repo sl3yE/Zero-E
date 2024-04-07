@@ -56,7 +56,7 @@ Please consider supporting this project with [BuyMeACoffee](https://www.buymeaco
     - `--help`: Self-explanatory -- does not require sudo
     - `--count`: Calculates and displays the total number of target IP addresses -- does not require sudo
     - `--geniplist`: Generates a list of unique, single IP addresses from the IP addresses, ranges, and CIDRs in the passed file  -- does not require sudo
-    - `--ngineer`: Enables entry of custom command options
+    - `--ngineer`: Enables entry of custom masscan and Nmap command options
 	- `--only`: Only run UDP scans if enabled, and/or specified stage if provided -- does not apply to other options
     - `--defaults`: Runs ZrE using default settings -- using options with this will overwrite the default for that option
         - Default options are:
