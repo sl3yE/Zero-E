@@ -9,7 +9,7 @@ Please consider supporting this project with [BuyMeACoffee](https://www.buymeaco
 
 # Features 
 1. Performs initial discovery scans for alive hosts and open ports
-2. Generates a file with alive hosts and a file with open TCP and UDP ports for reference
+2. Generates a file with alive hosts and a file with open TCP and UDP (if enabled) ports for reference
 3. Performs in-depth TCP and UDP (if enabled) service scans against alive hosts and open ports from discovery scans
 4. Includes a checkpoint system for resuming scans in case they're stopped before completion
 5. Option for both external and internal scans, which changes scan methodology appropriately
