@@ -136,17 +136,17 @@ Please consider supporting this project with [BuyMeACoffee](https://www.buymeaco
 # Methodology
 ## External
 1. Nmap alive host discovery
-   - sudo nmap -n -vv -sn -oG - --excludefile <$excludes_file> -iL <$targets_file>
+   - `sudo nmap -n -vv -sn -oG - --excludefile <$excludes_file> -iL <$targets_file>`
 2. Masscan open port/alive host discovery (customizable with `--ngineer`)
-   - sudo masscan --open-only -p 1-65535 --rate=5000 --excludefile <$excludes_file> --include-file <$targets_file> -oG <$output_file>
+   - `sudo masscan --open-only -p 1-65535 --rate=5000 --excludefile <$excludes_file> --include-file <$targets_file> -oG <$output_file>`
 3. UDP alive host/open port scan, if enabled  (customizable with `--ngineer`)
-   - sudo nmap -v -Pn -sU --open --min-rate 1000 --max-rate 3000 --top-ports 15094 --max-retries 3 --host-timeout 30 -oG <$output_file> --excludefile <$excludes_file> -iL <$targets_file> -d
+   - `sudo nmap -v -Pn -sU --open --min-rate 1000 --max-rate 3000 --top-ports 15094 --max-retries 3 --host-timeout 30 -oG <$output_file> --excludefile <$excludes_file> -iL <$targets_file> -d`
    - 15094 top ports is 99% effective. Reference [this chart](https://nmap.org/book/performance-port-selection.html) for --top-ports number effectiveness
 4. Generates lists of alive hosts and open ports
 5. Nmap TCP service scans
-   - sudo nmap -sC -sV -Pn -O -p <$open_ports> --open --reason --excludefile <$excludes_file> -iL <$targets_file> -oA <$output_file>
+   - `sudo nmap -sC -sV -Pn -O -p <$open_ports> --open --reason --excludefile <$excludes_file> -iL <$targets_file> -oA <$output_file>`
 6. Nmap UDP service scans, if enabled (customizable with `--ngineer`)
-   - sudo nmap -v -sU -Pn -sV --open --min-rate 1000 --max-rate 3000 --reason -p <$open_ports> -oA <$output_file> --excludefile <$excludes_file> -iL <$targets_file>
+   - `sudo nmap -v -sU -Pn -sV --open --min-rate 1000 --max-rate 3000 --reason -p <$open_ports> -oA <$output_file> --excludefile <$excludes_file> -iL <$targets_file>`
   
 ## Internal
 1. Creates a firewall rule to prevent RST packets from interfering with scans
