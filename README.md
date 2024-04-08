@@ -143,7 +143,7 @@ Please consider supporting this project with [BuyMeACoffee](https://www.buymeaco
    - `sudo nmap -v -Pn -sU --open --min-rate 1000 --max-rate 3000 --top-ports 15094 --max-retries 3 --host-timeout 30 -oG <$output_file> --excludefile <$excludes_file> -iL <$targets_file> -d`
    - 15094 top ports is 99% effective. Reference [this chart](https://nmap.org/book/performance-port-selection.html) for --top-ports number effectiveness
 4. Generates lists of alive hosts and open ports
-5. Nmap TCP service scans
+5. Nmap TCP service scans (customizable with `--ngineer`)
    - `sudo nmap -sC -sV -Pn -O -p <$open_ports> --open --reason --excludefile <$excludes_file> -iL <$targets_file> -oA <$output_file>`
 6. Nmap UDP service scans, if enabled (customizable with `--ngineer`)
    - `sudo nmap -v -sU -Pn -sV --open --min-rate 1000 --max-rate 3000 --reason -p <$open_ports> -oA <$output_file> --excludefile <$excludes_file> -iL <$targets_file>`
@@ -161,7 +161,7 @@ Please consider supporting this project with [BuyMeACoffee](https://www.buymeaco
     - `nmap -v -Pn -sU --open --min-rate 3000 --max-rate 5000 --top-ports 15094 --max-retries 3 --host-timeout 30 -oG <$output_file> --excludefile <$excludes_file> -iL <$targets_file>`
     - 15094 top ports is 99% effective. Reference [this chart](https://nmap.org/book/performance-port-selection.html) for --top-ports number effectiveness
 5. Generates lists of alive hosts and open ports
-6. Nmap TCP service scans
+6. Nmap TCP service scans (customizable with `--ngineer`)
     - `nmap -sC -sV -Pn -O -p <$open_ports> --open --reason -oA <$output_file> --excludefile <$excludes_file> -iL <$targets_file>`
-7. Nmap UDP service scans, if enabled  (customizable with `--ngineer`)
+7. Nmap UDP service scans, if enabled (customizable with `--ngineer`)
     - `nmap -v -sU -Pn -sV --open --min-rate 1000 --max-rate 3000 --reason -p <$open_ports> -oA <$output_file> --excludefile <$excludes_file> -iL <$targets_file>`
