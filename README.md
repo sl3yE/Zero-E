@@ -19,7 +19,7 @@ Please consider supporting this project with [BuyMeACoffee](https://www.buymeaco
 9. Generates a file with open ports in Nessus-ready format for faster scanning
 10. Accepts command switches, but reverts to interactive prompts if required switches are left out
 11. Detects and informs you of invalid targets
-12. Written in Bash for maximum compatibility and ease of use
+12. Written as a single Bash script for maximum portability, compatibility, and ease of use
 13. Includes timestamps in terminal output and a log file for reference
 14. On internal scans, which typically include more target hosts, detects the total number of hosts and adjusts scan speeds accordingly
 15. Checks if running on MacOS and adjusts commands accordingly (untested)
