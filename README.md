@@ -165,3 +165,8 @@ Please consider supporting this project with [BuyMeACoffee](https://www.buymeaco
     - `nmap -sC -sV -Pn -O -p <$open_ports> --open --reason -oA <$output_file> --excludefile <$excludes_file> -iL <$targets_file>`
 7. Nmap UDP service scans, if enabled (customizable with `--ngineer`)
     - `nmap -v -sU -Pn -sV --open --min-rate 1000 --max-rate 3000 --reason -p <$open_ports> -oA <$output_file> --excludefile <$excludes_file> -iL <$targets_file>`
+  
+# Planned improvements
+- Docker-ization
+- Allowing IP addresses to be passed for targets and excludes (vs requiring a file)
+- Option to automate launching Nessus scans
