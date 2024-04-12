@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-version="Zero-E (ZrE) v1.0"
+version="Zero-E (ZrE) v1.0.0.1"
 
 ###Functions
 function settype { #Set external or internal
@@ -748,7 +748,7 @@ function whenstopped {
 	exit 1
 }
 
-function kescleanup {
+function zrecleanup {
 	rm -rd /tmp/zeroe 2>/dev/null
 	rm paused.conf 2>/dev/null
 }
@@ -867,7 +867,7 @@ function zrengineer { #Enables users to customize commands
 
 		echo "[?] Provide custom options for the Nmap UDP service scan command:"
 		echo "    Leave blank to use the ZrE default"
-		echo "    Hardcoded: <-sU> <-sV> <-Pn> <-p> <--open> <--excludefile (null if not specified)> <-iL> <-oA>"
+		echo "    Hardcoded: <-sU> <-sV> <-Pn> <-p> <--excludefile (null if not specified)> <-iL> <-oA>"
 		while true; do
 			read -e -p " [>] " zreng_udps_opts
 			if [[ -z "$zreng_udps_opts" ]]; then #leave blank to use default
@@ -1061,7 +1061,7 @@ if [ "$help_flag" = true ]; then
 	echo "      Stages are still saved for resuming later as script runs"
 	echo "  --defaults: Runs ZrE using default settings -- using options with this will overwrite the default for that option"
 	echo "      Default settings are:"
-	echo "        Stage (-S/-s) -- starts at beginning of script"
+	echo "        Stage (-S/-s) -- starts at initial alives scan"
 	echo "        Targets file (-t) -- ./targets.txt"
 	echo "        Output directory (-o) -- ./zre-output"
 	echo "        Excluded targets (-x) -- none"
@@ -1672,7 +1672,7 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 	#fi #Stage end
 
 	#fi
-	kescleanup
+	zrecleanup
 	echo -e "\e[35m [=] Zero-E completed -- happy hacking! \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 	sed -i 's/\x1b\[[0-9;]*m//g' "$filepath/logs/$typevar-timestamps.log"
 fi
@@ -2102,7 +2102,7 @@ echo $udp
 	#fi #Stage end
 
 	#fi
-	kescleanup
+	zrecleanup
 	echo -e "\e[35m [=] Zero-E completed -- happy hacking! \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 	sudo sed -i 's/\x1b\[[0-9;]*m//g' "$filepath/logs/$typevar-timestamps.log"
 fi
