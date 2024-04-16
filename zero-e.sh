@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-version="Zero-E (ZrE) v1.0.0.1"
+version="Zero-E (ZrE) v1.0.1"
 
 ###Functions
 function settype { #Set external or internal
@@ -46,7 +46,7 @@ function output {
 			elif [[ "$filepath" == "-"* ]]; then
 				echo -e "\e[31m [X] Error: Directory names starting with '-' may cause issues with commands \e[0m"
 			elif [[ "$filepath" == *" "* ]]; then
-				echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed \e[0m"
+				echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed in file names \e[0m"
 			elif [ -n "$filepath" ]; then
 				break
 			fi
@@ -103,16 +103,29 @@ function output {
 	filepath="$(realpath $filepath)"
 }
 
-function targets {
+function targets {	
 	if [[ -z "$t_opt" && "$defaults" = true ]]; then
 		ips="targets.txt"
 		if [[ ! -f "$ips" ]]; then
 			echo -e "\e[31m [X] Error: The default targets file (./targets.txt) does not exist \e[0m"
 			exit 1
+		elif [ ! -s "$ips" ]; then #Check if the file is empty
+        	echo -e "\\e[31m [X] Error: $ips is empty \\e[0m"
+			exit 1
 		fi
 		checkfile="$ips"
 		checkinvalidips #Check targets file for invalid entries
 	elif [ -n "$t_opt" ]; then
+		if [[ "$t_opt" == "-"* ]]; then
+			echo -e "\e[31m [X] Error: File names starting with '-' may cause issues with commands \e[0m"
+			exit 1
+		elif [[ "$t_opt" == *" "* ]]; then
+			echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed in file names \e[0m"
+			exit 1
+		elif [ ! -s "$t_opt" ]; then #Check if the file is empty
+        	echo -e "\\e[31m [X] Error: $t_opt is empty \\e[0m"
+			exit 1
+		fi
 		ips="$t_opt"
 		checkfile="$ips"
 		checkinvalidips #Check targets file for invalid entries
@@ -122,11 +135,13 @@ function targets {
 			read -e -p " [>] " ips
 			if [[ -z "$ips" ]] || [[ ! -f "$ips" ]]; then
 				echo -e "\e[31m [X] Error: You must pass an existing file containing the IP addresses (e.g. targets.txt) \e[0m"
+			elif [ ! -s "$ips" ]; then #Check if the file is empty
+        		echo -e "\\e[31m [X] Error: $ips is empty \\e[0m"
 			else
 				if [[ "$ips" == "-"* ]]; then
 					echo -e "\e[31m [X] Error: File names starting with '-' may cause issues with commands \e[0m"
 				elif [[ "$ips" == *" "* ]]; then
-					echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed \e[0m"
+					echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed in file names \e[0m"
 				else
 					checkfile="$ips"
 					checkinvalidips #Check targets file for invalid entries
@@ -153,6 +168,16 @@ function excludes {
 		touch /tmp/zeroe/nullexcludes.zre
 		nostrikes="/tmp/zeroe/nullexcludes.zre"
 	elif [ -n "$x_opt" ]; then
+		if [[ "$x_opt" == "-"* ]]; then
+			echo -e "\e[31m [X] Error: File names starting with '-' may cause issues with commands \e[0m"
+			exit 1
+		elif [[ "$x_opt" == *" "* ]]; then
+			echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed in file names \e[0m"
+			exit 1
+		elif [ ! -s "$x_opt" ]; then #Check if the file is empty
+        	echo -e "\\e[31m [X] Error: $x_opt is empty \\e[0m"
+			exit 1
+		fi
 		nostrikes="$x_opt"
 		checkfile="$nostrikes"
 		checkinvalidips #Check excludes file for invalid entries
@@ -167,11 +192,13 @@ function excludes {
 				break
 			elif [[ ! -f "$nostrikes" ]]; then
 				echo -e "\e[31m [X] Error: You must pass an existing file containing the list of IP addresses to exclude (e.g. exclude.txt) \e[0m"
+			elif [ ! -s "$nostrikes" ]; then #Check if the file is empty
+        		echo -e "\\e[31m [X] Error: $nostrikes is empty \\e[0m"
 			else
 				if [[ "$nostrikes" == "-"* ]]; then
 					echo -e "\e[31m [X] Error: File names starting with '-' may cause issues with commands \e[0m"
 				elif [[ "$nostrikes" == *" "* ]]; then
-					echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed \e[0m"
+					echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed in file names \e[0m"
 				else
 					checkfile="$nostrikes"
 					checkinvalidips #Check targets file for invalid entries
@@ -547,12 +574,12 @@ function stagefilescheck { #Checks if required files are present for the specifi
         #    echo -e "  - $file"
         #done
 		if [[ -f /tmp/zeroe/stage.zre ]]; then
-        	echo -e "\e[31m [X] Error: Required ZrE files for $stage stage do not exist --"
-			echo -e "            resume ZrE from the saved $(cat /tmp/zeroe/stage.zre) stage, or restart ZrE \e[0m"
+        	echo -e "\e[31m [X] Error: Required ZrE files for $stage stage do not exist"
+			echo -e "            Resume ZrE from the saved $(cat /tmp/zeroe/stage.zre) stage, or restart ZrE \e[0m"
         	exit 1
 		else
-			echo -e "\e[31m [X] Error: Required ZrE files for $stage stage do not exist --"
-			echo -e "            correct output directory if repeating stage, or restart ZrE \e[0m"
+			echo -e "\e[31m [X] Error: Required ZrE files for $stage stage do not exist"
+			echo -e "            Correct output directory if repeating stage, or restart ZrE \e[0m"
         	exit 1
 		fi
     fi
@@ -1150,6 +1177,9 @@ while getopts ':eio:t:x:UusS:' opt "${remaining_args[@]}" 2>/dev/null; do
 			elif [[ "$OPTARG" == *" "* ]]; then
 				echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed in file names \e[0m"
 				exit 1
+			elif [ ! -s "$OPTARG" ]; then #Check if the file is empty
+        		echo -e "\\e[31m [X] Error: $OPTARG is empty \\e[0m"
+				exit 1
             else
 				t_opt="$OPTARG"
 			fi
@@ -1165,6 +1195,9 @@ while getopts ':eio:t:x:UusS:' opt "${remaining_args[@]}" 2>/dev/null; do
                 exit 1
 			elif [[ "$OPTARG" == *" "* ]]; then
 				echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed in file names \e[0m"
+				exit 1
+			elif [ ! -s "$OPTARG" ]; then #Check if the file is empty
+        		echo -e "\\e[31m [X] Error: $OPTARG is empty \\e[0m"
 				exit 1
 			else
 				x_opt="$OPTARG"
