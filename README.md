@@ -52,7 +52,7 @@ Please consider supporting this project with [BuyMeACoffee](https://www.buymeaco
 3. Embrace your inner script kiddie, sit back in your reclining ergonomic chair, and take a nap while ZrE does your work for you
 
 ## Switches (Advanced)
-1. `sudo ./zero-e.sh [-e || -i] [-o output_directory] [-t targets_file] [-x [excludes_file]] [-U || -u] [-S [stage] || -s] [--count filename] [--geniplist filename] [--ngineer] [--only]`
+1. `sudo ./zero-e.sh [-e || -i] [-o output_directory] [-t targets_file] [-x [excludes_file]] [-U || -u] [-S [stage] || -s] [--count filename] [--geniplist filename] [--ngineer] [--only] [--defaults]`
     - `--help`: Self-explanatory -- does not require sudo
     - `--count`: Calculates and displays the total number of target IP addresses -- does not require sudo
     - `--geniplist`: Generates a list of unique, single IP addresses from the IP addresses, ranges, and CIDRs in the passed file  -- does not require sudo
