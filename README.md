@@ -3,7 +3,7 @@
 </p>
 
 # Description
-Host discovery and service enumeration are part of every network pentest and routine check. It's relatively straightforward, and we could all probably do it in our sleep (you will be with this tool), but doing it thoroughly is still tedious and wastes valuable time. Zero-E (ZrE) aims to automate the entire process in a fire-and-forget manner, from initial open port and live host discovery scans to in-depth scanning of only active hosts and open ports, to free up our attention to work on other things and save valuable time. It uses a thoughtful, extensively-tested methodology that balances accuracy and efficiency. It's zero effort, zero error network enumeration made easy with zero experience required. Among many other functions, it generates multiple files for various analysis purposes. So embrace your inner script kiddie, sit back in your reclining ergonomic chair, and take a nap while ZrE does your work for you.
+Host discovery and service enumeration are part of every network pentest and routine check. It's relatively straightforward, and we could all probably do it in our sleep (you will be with this tool), but doing it thoroughly is still tedious and wastes valuable time. Zero-E (ZrE) aims to automate the entire process in a fire-and-forget manner, from initial open port and live host discovery scans to in-depth scanning of only active hosts and open ports, to free up our attention to work on other things and save valuable time. It uses a thoughtful, extensively-tested methodology that balances accuracy and efficiency. Zero-E is zero effort, zero error network enumeration made easy with zero experience required, taking you from zero to elite-- ...ok you get it. Among many other functions, it generates multiple files for various analysis purposes. So embrace your inner script kiddie, sit back in your reclining ergonomic chair, and take a nap while ZrE does your work for you.
 
 Please consider supporting this project with [BuyMeACoffee](https://www.buymeacoffee.com/inscyght) or Bitcoin (wallet address: 37Gofs5XGv8zB8odoFTJLv8NZk9TvwSr3i)
 
@@ -52,7 +52,7 @@ Please consider supporting this project with [BuyMeACoffee](https://www.buymeaco
 3. Embrace your inner script kiddie, sit back in your reclining ergonomic chair, and take a nap while ZrE does your work for you
 
 ## Switches (Advanced)
-1. `sudo ./zero-e.sh [-e || -i] [-o output_directory] [-t targets_file] [-x [excludes_file]] [-U || -u] [-S [stage] || -s] [--count filename] [--geniplist filename] [--ngineer] [--only]`
+1. `sudo ./zero-e.sh [-e || -i] [-o output_directory] [-t targets_file] [-x [excludes_file]] [-U || -u] [-S [stage] || -s] [--count filename] [--geniplist filename] [--ngineer] [--only] [--defaults]`
     - `--help`: Self-explanatory -- does not require sudo
     - `--count`: Calculates and displays the total number of target IP addresses -- does not require sudo
     - `--geniplist`: Generates a list of unique, single IP addresses from the IP addresses, ranges, and CIDRs in the passed file  -- does not require sudo
@@ -150,8 +150,8 @@ Please consider supporting this project with [BuyMeACoffee](https://www.buymeaco
   
 ## Internal
 1. Creates a firewall rule to prevent RST packets from interfering with scans
-    -Linux: `sudo iptables -A INPUT -p tcp --dport 55555 -j DROP`
-    -Mac: `block drop in proto tcp from any to any port 55555" | sudo tee -a /etc/pf.conf >> $filepath/logs/mac-pfctl.log`
+    - Linux: `sudo iptables -A INPUT -p tcp --dport 55555 -j DROP`
+    - Mac: `cp "/etc/pf.conf" "$filepath/logs/pf.conf.bak-prescript" && block drop in proto tcp from any to any port 55555" | sudo tee -a /etc/pf.conf && sudo pfctl -f /etc/pf.conf` (untested)
 2. Masscan alive host discovery
     - `sudo masscan --rate=8000 --src-port=55555 --excludefile <$excludes_file> --include-file <$targets_file> -oG <$output_file>`
     - Detects total number of targets and adjusts --top-ports number accordingly to keep initial alives scan as quick as possible while remaining accurate
@@ -160,6 +160,10 @@ Please consider supporting this project with [BuyMeACoffee](https://www.buymeaco
 4. UDP alive host/open port scan, if enabled (customizable with `--ngineer`)
     - `nmap -v -Pn -sU --open --min-rate 3000 --max-rate 5000 --top-ports 15094 --max-retries 3 --host-timeout 30 -oG <$output_file> --excludefile <$excludes_file> -iL <$targets_file>`
     - 15094 top ports is 99% effective. Reference [this chart](https://nmap.org/book/performance-port-selection.html) for --top-ports number effectiveness
+5. Removes the firewall rule
+   - Linux: `sudo iptables -D INPUT -p tcp --dport 55555 -j DROP`
+   - Mac: `cp "/etc/pf.conf" && sudo sed -i "/block drop in proto tcp from any to any port 55555/d" /etc/pf.conf && sudo pfctl -f /etc/pf.conf` (untested)
+   	 - If `pfctl` was originally disabled: `sudo pfctl -d`
 5. Generates lists of alive hosts and open ports
 6. Nmap TCP service scans (customizable with `--ngineer`)
     - `nmap -sC -sV -Pn -O -p <$open_ports> --open --reason -oA <$output_file> --excludefile <$excludes_file> -iL <$targets_file>`
