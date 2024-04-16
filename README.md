@@ -150,8 +150,8 @@ Please consider supporting this project with [BuyMeACoffee](https://www.buymeaco
   
 ## Internal
 1. Creates a firewall rule to prevent RST packets from interfering with scans
-    -Linux: `sudo iptables -A INPUT -p tcp --dport 55555 -j DROP`
-    -Mac: `block drop in proto tcp from any to any port 55555" | sudo tee -a /etc/pf.conf >> $filepath/logs/mac-pfctl.log`
+    - Linux: `sudo iptables -A INPUT -p tcp --dport 55555 -j DROP`
+    - Mac: `block drop in proto tcp from any to any port 55555" | sudo tee -a /etc/pf.conf >> $filepath/logs/mac-pfctl.log`
 2. Masscan alive host discovery
     - `sudo masscan --rate=8000 --src-port=55555 --excludefile <$excludes_file> --include-file <$targets_file> -oG <$output_file>`
     - Detects total number of targets and adjusts --top-ports number accordingly to keep initial alives scan as quick as possible while remaining accurate
