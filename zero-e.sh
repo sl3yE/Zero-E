@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-version="Zero-E (ZrE) v1.0.1"
+version="Zero-E (ZrE) v1.0.2"
 
 ###Functions
 function settype { #Set external or internal
@@ -1182,6 +1182,8 @@ while getopts ':eio:t:x:UusS:' opt "${remaining_args[@]}" 2>/dev/null; do
 				exit 1
             else
 				t_opt="$OPTARG"
+				checkfile="$t_opt"
+				checkinvalidips
 			fi
     		;;
 		x)
@@ -1201,6 +1203,8 @@ while getopts ':eio:t:x:UusS:' opt "${remaining_args[@]}" 2>/dev/null; do
 				exit 1
 			else
 				x_opt="$OPTARG"
+				checkfile="$x_opt"
+				checkinvalidips
 			fi
 			;;
 		U) 
@@ -1579,7 +1583,7 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 		elif [ -s "$filepath/$typevar-100port-hosts-udp.txt" ]; then
 			echo -e "\e[33m [!] Excluding potential deception or firewall-protected hosts showing more than 100 open UDP ports -- recommend inquiring about hosts in ext-100port-hosts-udp.txt \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		fi
-		echo -e "\e[33m [!] Files generated for Nessus vulnerability scans -- Hosts: $typevar-alives.txt | Ports: $typevar-portsfornessus.txt \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		echo -e "\e[33m [!] Generated files for Nessus vulnerability scans -- Hosts: $typevar-alives.txt | Ports: $typevar-portsfornessus.txt \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 	
 		#Stage -- update
 		if [[ "$only_flag" != true && "$stage_cont" == true ]]; then
@@ -2011,7 +2015,7 @@ echo $udp
 		elif [ -s "$filepath/$typevar-100port-hosts-udp.txt" ]; then
 			echo -e "\e[33m [!] Excluding potential deception or firewall-protected hosts showing more than 100 open UDP ports -- recommend inquiring about hosts in $typevar-100port-hosts-udp.txt \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		fi
-		echo -e "\e[33m [!] You should now start a Nessus vulnerability scan against hosts in $typevar-alives.txt and open ports in $typevar-portsfornessus.txt \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		echo -e "\e[33m [!] Generated files for Nessus vulnerability scans -- Hosts: $typevar-alives.txt | Ports: $typevar-portsfornessus.txt \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 	
 		#Stage -- update
 		if [[ "$only_flag" != true && "$stage_cont" == true ]]; then
