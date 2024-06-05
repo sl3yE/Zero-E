@@ -2,29 +2,31 @@
 version="Zero-E (ZrE) v1.0.3"
 
 ###Functions added update check (public) | 
-function updatecheck {
-	#Get the latest version of the script from GitHub
-	latest_script=$(curl -s "https://raw.githubusercontent.com/inscyght/zero-e/main/zero-e.sh")
-	# Extract the latest version from the retrieved script
-	latest_version=$(echo "$latest_script" | grep -oP 'version="\K[^"]+')
-	# Compare the latest version with the local version
-	if [ "$latest_version" != "$version" ]; then
-	    echo "A new version of Zero-E is available on GitHub."
-	    echo "Local version: $version"
-	    echo "Latest version: $latest_version"
-	    read -p "Do you want to update to the newest version? [y/N]: " choice
-	    case "$choice" in
-	        y|Y)
-	            echo "Updating Zero-E..."
-	            echo "$latest_script" > "$0"
-	            echo "Zero-e updated successfully. Please re-run the script."
-	            exit 0
-	            ;;
-	        *)
-	            echo "Skipping the update and continuing with the local version."
-	            ;;
-	    esac
-	fi
+function updatecheck { #Check version and update the script
+	URL="https://raw.githubusercontent.com/inscyght/zero-e/main/zero-e.sh"
+    #Function to get the latest version string from the script on GitHub
+    get_latest_version() {
+        curl -s $URL | grep -m 1 '^version=' | awk -F'"' '{print $2}'
+    }
+    #Function to update the script
+    update_script() {
+        curl -o zero-e.sh $URL
+        chmod +x zero-e.sh
+    }
+    latest_version=$(get_latest_version)
+    if [ "$version" != "$latest_version" ]; then
+        echo "A new version of Zero-E is available: $latest_version"
+        read -p "Do you want to update to the latest version? <y/n>: " response
+        if [ "$response" == "y" ]; then
+            echo "Updating..."
+            update_script
+            echo "Zero-E updated to version $latest_version -- please re-run ZrE"
+            exit 0
+        else
+            echo "Continuing with the local version"
+			echo ""
+        fi
+    fi
 }
 
 function settype { #Set external or internal
