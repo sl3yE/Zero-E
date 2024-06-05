@@ -1,7 +1,32 @@
 #!/usr/bin/env bash
-version="Zero-E (ZrE) v1.0.2"
+version="Zero-E (ZrE) v1.0.3"
 
-###Functions
+###Functions added update check (public) | 
+function updatecheck {
+	#Get the latest version of the script from GitHub
+	latest_script=$(curl -s "https://raw.githubusercontent.com/inscyght/zero-e/main/zero-e.sh")
+	# Extract the latest version from the retrieved script
+	latest_version=$(echo "$latest_script" | grep -oP 'version="\K[^"]+')
+	# Compare the latest version with the local version
+	if [ "$latest_version" != "$version" ]; then
+	    echo "A new version of Zero-E is available on GitHub."
+	    echo "Local version: $version"
+	    echo "Latest version: $latest_version"
+	    read -p "Do you want to update to the newest version? [y/N]: " choice
+	    case "$choice" in
+	        y|Y)
+	            echo "Updating Zero-E..."
+	            echo "$latest_script" > "$0"
+	            echo "Zero-e updated successfully. Please re-run the script."
+	            exit 0
+	            ;;
+	        *)
+	            echo "Skipping the update and continuing with the local version."
+	            ;;
+	    esac
+	fi
+}
+
 function settype { #Set external or internal
 	if [ "$e_opt" = true ] || [ "$i_opt" = true ]; then
 		if [ "$e_opt" = true ]; then
@@ -322,7 +347,8 @@ function singleportstorange { #Converts individual sequential port numbers into 
 function checkinvalidips { #Checks targets file for invalid entries
 	dos2unix -q "$checkfile" #Converts target files created on Windows to unix format to remove hidden characters
 	sed -i '/^[ \t]*$/d' "$checkfile" #Removes blank lines and lines that only contain spaces
-	
+	sed -i 's/^[[:space:]]*//; s/[[:space:]]*$//' "$checkfile" #Removes whitespace from the beginning and end of each line
+
 	#Regex pattern to match single IPv4 addresses
 	ip_single='^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$'
 	#Regex pattern to match full IPv4 address ranges
@@ -396,7 +422,7 @@ function stageinit { #The checkpoint system
 				#echo "$stage" > /tmp/zeroe/stage.zre
 				echo "$(pwd)" > /tmp/zeroe/initdir.zre
 				if checkinvalidstage; then
-					if [[ "$only_flag"=false ]]; then
+					if [[ "$only_flag" = false ]]; then
 						stage_cont=true
 					fi
 					break
@@ -1001,6 +1027,8 @@ function zrengineer { #Enables users to customize commands
 	fi
 }
 
+updatecheck
+
 #--Switches
 #pre-sudo options
 help_flag=false
@@ -1603,44 +1631,48 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 		#ntports3=$($(head -n 3 $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt | paste -sd "," -),[...])
 		ntscan="nmap -sC -sV -Pn -O -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt | paste -sd "," -) --open --reason --excludefile $nostrikes -iL $filepath/$typevar-alives.txt -oA $filepath/$typevar-tcp-servicescan-results"
 		echo "ntscan=\"$ntscan\"" >> /tmp/zeroe/vars.zre
-		if [[ "$resume" = "y" ]]; then
-			resume=''
-			echo -e "\e[36m [-] Resuming TCP service scans \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-			echo -e "\e[36m     Using options from resumed scan \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-			nmap --resume $filepath/$typevar-tcp-servicescan-results.gnmap 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
-		else
-			if [[ "$ngineer_mode" == true ]]; then
-				if [[ "$ngineer_tcps_default" == true ]]; then	
-					eval "$ntscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+		if grep -q "\S" "$filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt"; then
+			if [[ "$resume" = "y" ]]; then
+				resume=''
+				echo -e "\e[36m [-] Resuming TCP service scans \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+				echo -e "\e[36m     Using options from resumed scan \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+				nmap --resume $filepath/$typevar-tcp-servicescan-results.gnmap 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+			else
+				if [[ "$ngineer_mode" == true ]]; then
+					if [[ "$ngineer_tcps_default" == true ]]; then	
+						eval "$ntscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+					else
+						echo -e "\e[33m [!] Using ZrE ngineer options for Nmap TCP service scan \e[0m"
+						eval "nmap $zreng_tcps_opts -sV -Pn -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt | paste -sd "," -) -oA $filepath/$typevar-tcp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+					fi
 				else
-					echo -e "\e[33m [!] Using ZrE ngineer options for Nmap TCP service scan \e[0m"
-					eval "nmap $zreng_tcps_opts -sV -Pn -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt | paste -sd "," -) -oA $filepath/$typevar-tcp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+					eval "$ntscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+				fi
+			fi
+			pid=$!
+			echo -e "\e[36m [-] Scanning services on open TCP ports of alive hosts with Nmap -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+			#Status indicator
+			periodicfile="$filepath/$typevar-tcp-servicescan-results.nmap"
+			contstatus="Scanning TCP ports"
+			statusnmap
+			#Error check and alert
+			checked_cmd="$ntscan"
+			wait $pid
+			exitstatus=$?
+			if [ $exitstatus -eq 0 ]; then
+				printf "\r%-${#indicator}s\r" "" #Clears status indicator line
+				if [ "$udp" = "y" ] || [ "$udp" = "yes" ] || [ "$U_opt" = true  ]; then
+					echo -e "\e[32m [+] Nmap TCP service scan complete, results saved as ext-tcp-servicescan-results -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+					#echo -e "\e[33m [!] Start working with TCP scan results. UDP scans may take a while, depending on the amount of hosts and ports. \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+				else
+					echo -e "\e[32m [+] Nmap TCP service scan complete, results saved as ext-tcp-servicescan-results -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 				fi
 			else
-				eval "$ntscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
-			fi
-		fi
-		pid=$!
-		echo -e "\e[36m [-] Scanning services on open TCP ports of alive hosts with Nmap -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-		#Status indicator
-		periodicfile="$filepath/$typevar-tcp-servicescan-results.nmap"
-		contstatus="Scanning TCP ports"
-		statusnmap
-		#Error check and alert
-		checked_cmd="$ntscan"
-		wait $pid
-		exitstatus=$?
-		if [ $exitstatus -eq 0 ]; then
-			printf "\r%-${#indicator}s\r" "" #Clears status indicator line
-			if [ "$udp" = "y" ] || [ "$udp" = "yes" ] || [ "$U_opt" = true  ]; then
-				echo -e "\e[32m [+] Nmap TCP service scan complete, results saved as ext-tcp-servicescan-results -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-				#echo -e "\e[33m [!] Start working with TCP scan results. UDP scans may take a while, depending on the amount of hosts and ports. \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-			else
-				echo -e "\e[32m [+] Nmap TCP service scan complete, results saved as ext-tcp-servicescan-results -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+				printf "\r%-${#indicator}s\r" "" #Clears status indicator line
+				errorcheck
 			fi
 		else
-			printf "\r%-${#indicator}s\r" "" #Clears status indicator line
-			errorcheck
+			echo -e "\e[36m [-] No open TCP ports detected -- TCP service scans skipped \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
 		fi
 	
 		#Stage -- update
@@ -2033,46 +2065,50 @@ echo $udp
 		#Nmap TCP service scans
 		ntscan="nmap -sC -sV -Pn -O -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt | paste -sd "," -) --open --reason -oA $filepath/$typevar-tcp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt"
 		echo "ntscan=\"$ntscan\"" >> /tmp/zeroe/vars.zre
-		if [[ "$resume" = "y" ]]; then
-			resume=''
-			echo -e "\e[36m [-] Resuming TCP service scans \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-			echo -e "\e[36m     Using options from resumed scan \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-			nmap --resume $filepath/$typevar-tcp-servicescan-results.gnmap 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
-		else
-			if [[ "$ngineer_mode" == true ]]; then
-				if [[ "$ngineer_tcps_default" == true ]]; then	
-					eval "$ntscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+		if grep -q "\S" "$filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt"; then
+			if [[ "$resume" = "y" ]]; then
+				resume=''
+				echo -e "\e[36m [-] Resuming TCP service scans \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+				echo -e "\e[36m     Using options from resumed scan \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+				nmap --resume $filepath/$typevar-tcp-servicescan-results.gnmap 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+			else
+				if [[ "$ngineer_mode" == true ]]; then
+					if [[ "$ngineer_tcps_default" == true ]]; then	
+						eval "$ntscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+					else
+						echo -e "\e[33m [!] Using ZrE ngineer options for Nmap TCP service scan \e[0m"
+						eval "nmap $zreng_tcps_opts -sV -Pn -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt | paste -sd "," -) -oA $filepath/$typevar-tcp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+					fi
 				else
-					echo -e "\e[33m [!] Using ZrE ngineer options for Nmap TCP service scan \e[0m"
-					eval "nmap $zreng_tcps_opts -sV -Pn -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt | paste -sd "," -) -oA $filepath/$typevar-tcp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+					eval "$ntscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+				fi
+			fi
+			pid=$!
+			echo -e "\e[36m [-] Scanning services on open TCP ports of alive hosts with Nmap -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+			#Status indicator
+			periodicfile="$filepath/$typevar-tcp-servicescan-results.nmap"
+			contstatus="Scanning TCP ports"
+			statusnmap
+			#Error check and alert
+			checked_cmd="$ntscan"
+			wait $pid
+			exitstatus=$?
+			if [ $exitstatus -eq 0 ]; then
+				printf "\r%-${#indicator}s\r" "" #Clears status indicator line
+				if [ "$udp" = "y" ] || [ "$udp" = "yes" ] || [ "$U_opt" = true ]; then
+					echo -e "\e[32m [+] Nmap TCP service scan complete, results saved as $typevar-tcp-servicescan-results -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+					#echo -e "\e[33m [!] Start working with TCP scan results. UDP scans may take a while, depending on the amount of hosts and ports. \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+				else
+					echo -e "\e[32m [+] Nmap TCP service scan complete, results saved as $typevar-tcp-servicescan-results -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 				fi
 			else
-				eval "$ntscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
-			fi
-		fi
-		pid=$!
-		echo -e "\e[36m [-] Scanning services on open TCP ports of alive hosts with Nmap -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-		#Status indicator
-		periodicfile="$filepath/$typevar-tcp-servicescan-results.nmap"
-		contstatus="Scanning TCP ports"
-		statusnmap
-		#Error check and alert
-		checked_cmd="$ntscan"
-		wait $pid
-		exitstatus=$?
-		if [ $exitstatus -eq 0 ]; then
-			printf "\r%-${#indicator}s\r" "" #Clears status indicator line
-			if [ "$udp" = "y" ] || [ "$udp" = "yes" ] || [ "$U_opt" = true ]; then
-				echo -e "\e[32m [+] Nmap TCP service scan complete, results saved as $typevar-tcp-servicescan-results -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-				#echo -e "\e[33m [!] Start working with TCP scan results. UDP scans may take a while, depending on the amount of hosts and ports. \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-			else
-				echo -e "\e[32m [+] Nmap TCP service scan complete, results saved as $typevar-tcp-servicescan-results -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+				printf "\r%-${#indicator}s\r" "" #Clears status indicator line
+				errorcheck
 			fi
 		else
-			printf "\r%-${#indicator}s\r" "" #Clears status indicator line
-			errorcheck
+			echo -e "\e[36m [-] No open TCP ports detected -- TCP service scans skipped \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
 		fi
-	
+
 		#Stage -- update
 		if { [ "$udp" = "y" ] || [ "$udp" = "yes" ] || [ "$U_opt" = true ]; } && [[ "$stage_cont" == true ]]; then
 			echo "services-udp" > /tmp/zeroe/stage.zre
