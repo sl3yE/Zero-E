@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-version="Zero-E (ZrE) v1.0.3"
+version="Zero-E (ZrE) v1.0.3.1"
 
 ###Functions added update check (public) | 
 function updatecheck { #Check version and update the script
@@ -18,8 +18,10 @@ function updatecheck { #Check version and update the script
         echo "A new version of Zero-E is available: $latest_version"
         read -p "Do you want to update to the latest version? <y/n>: " response
         if [ "$response" == "y" ]; then
-            echo "Updating..."
+            echo ""
+			echo "Updating..."
             update_script
+			echo ""
             echo "Zero-E updated to version $latest_version -- please re-run ZrE"
             exit 0
         else
@@ -1707,7 +1709,7 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 							eval "nmap $zreng_udps_opts -sU -sV -Pn -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-udp.txt | paste -sd "," -) -oA $filepath/$typevar-udp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 						fi
 					else
-						eval "$ntscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+						eval "$nsudp -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 					fi
 				fi
 				pid=$!
@@ -2141,7 +2143,7 @@ echo $udp
 						eval "nmap $zreng_udps_opts -sU -sV -Pn -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-udp.txt | paste -sd "," -) -oA $filepath/$typevar-udp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 					fi
 				else
-					eval "$ntscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+					eval "$nsudp -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 				fi
 			fi
 			pid=$!
