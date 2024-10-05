@@ -21,12 +21,12 @@ done
 mkdir -p "$install_dir"
 
 #Copy Zero-E to the installation directory
-sudo cp ./zero-e.sh "$install_dir/zeroe" && sudo chmod +x "$install_dir/zeroe"
+sudo cp ./zero-e "$install_dir/zeroe" && sudo chmod +x "$install_dir/zeroe"
 exitstatus=$?
 
 if [ $exitstatus -eq 0 ]; then
     echo -e "\e[32m [+] Zero-E copied to $install_dir/zeroe \e[0m"
-    echo -e "\e[36m [-] Zero-E can now be ran with '\e[32mzeroe [options]\e[36m' from anywhere \e[0m"
+    echo -e "\e[36m [-] Zero-E can now be ran with '\e[32mzeroe [options]\e[36m' from anywhere, as you would any other command \e[0m"
 else
     echo -e "\e[31m [!] Failed to install Zero-E \e[0m"
 fi

@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 version="Zero-E (ZrE) v1.1"
-#################### removed troubleshooting artifacts REMOVE THIS BEFORE UPLOAD -- MUST ALSO UPLOAD AS ZERO-E.SH BECAUSE OF RENAMING####################
 ###Functions
 function updatecheck { #Check version and update the script
 	{	
