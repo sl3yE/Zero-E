@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-version="Zero-E (ZrE) v1.1"
+version="Zero-E (ZrE) v1.1.1"
 ###Functions
 function updatecheck { #Check version and update the script
 	{	
@@ -1462,7 +1462,6 @@ if [ "$help_flag" = true ]; then
 	echo "      	discovery-lists"
 	echo "      	services-tcp"
 	echo "      	services-udp"
-	#echo "      	methodology"
 	echo "  -s: Disables stage resuming and selection and starts at beginning of script -- cannot be used with -S"
 	echo "      Stages are still saved for resuming later as script runs"
 	echo "  --defaults: Runs ZrE using default settings -- using options with this will overwrite the default for that option"
@@ -1793,6 +1792,16 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 			#	fi
 			#else
 				eval "$ntdscan" 1>>"$filepath/logs/misc-files/$typevar-discoscan-nmap.gnmap" 2>>"$filepath/logs/$typevar-errors.log" &
+				#Generate alives file when only flag is used
+				eval "$ntdscan" 1>>"$filepath/logs/misc-files/$typevar-discoscan-nmap.gnmap" 2>>"$filepath/logs/$typevar-errors.log" &
+				if [[ "$stage" == "discovery-alives" ]] && [[ "$only_flag" == true ]]; then
+					cat "$filepath/logs/misc-files/$typevar-discoscan-nmap.gnmap" | grep 'Up' | awk '{print $2}' | sort -u | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n > $filepath/$typevar-alives.txt
+					if grep -q "\S" "$filepath/$typevar-alives.txt"; then
+						echo -e "\e[32m [+] Alive hosts discovered -- "$(date)" \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+					else
+						echo -e "\e[33m [!] No alive hosts detected \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+					fi
+				fi
 			#fi
 		fi
 		#Status indicator
@@ -2053,7 +2062,7 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 			parsegrepnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 25,465,587,143,993,110,995 "$filepath/analysis/$typevar-emailHosts.txt"
 			parsegrepnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 389,636 "$filepath/analysis/$typevar-ldapHosts.txt"
 		else
-			echo -e "\e[36m [-] No open TCP ports detected -- TCP service scans skipped \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+			echo -e "\e[33m [!] No open TCP ports detected -- TCP service scans skipped \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
 		fi
 	
 		#Stage -- update
@@ -2107,7 +2116,7 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 			genwindowshostlist_inscript
 			listiptohostname_inscript
 		else
-			echo -e "\e[36m [-] No open UDP ports detected -- UDP service scans skipped \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+			echo -e "\e[33m [!] No open UDP ports detected -- UDP service scans skipped \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		fi
 	fi
 
@@ -2205,16 +2214,27 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 			exitstatus=$?
 			errorcheck
 		fi 
-		echo -e "\e[32m [+] Alive hosts discovered -- "$(date)" \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		#Filter out hosts with more than 100 ports open
 		susinput="$filepath/logs/misc-files/$typevar-masscanalives-results.txt"
 		susips="$filepath/$typevar-100port-hosts-tcp.txt"
 		susoutput="$filepath/logs/misc-files/$typevar-discoscan-masscan-tcp-nosusips.txt"
 		filtersusips
 		#Carve out TCP IP addresses and put them into a file
-		cat $filepath/logs/misc-files/$typevar-discoscan-masscan-tcp-nosusips.txt | grep 'Host' | awk '{print $4}' >> $filepath/logs/misc-files/$typevar-discoresults.txt #this excludes 100port-hosts
+		cat $filepath/logs/misc-files/$typevar-discoscan-masscan-tcp-nosusips.txt | grep 'Host' | awk '{print $4}' >> "$filepath/logs/misc-files/$typevar-discoresults.txt" #this excludes 100port-hosts
 		#cat $filepath/logs/misc-files/$typevar-masscanalives-results.txt | grep 'Host' | awk '{print $4}' | sort -u >> $filepath/$typevar-masscan-alives.txt
-	
+
+		#Generate alives file when only flag is used
+		if [[ "$stage" == "discovery-alives" ]] && [[ "$only_flag" == true ]]; then
+			cat "$filepath/logs/misc-files/$typevar-discoresults.txt" | sort -u | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n > "$filepath/$typevar-alives.txt"
+			if grep -q "\S" "$filepath/$typevar-alives.txt"; then
+				echo -e "\e[32m [+] Alive hosts discovered -- "$(date)" \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+			else
+				echo -e "\e[33m [!] No alive hosts detected \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+			fi
+		else
+			echo -e "\e[32m [+] Alive hosts discovered -- "$(date)" \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		fi
+
 		#Stage -- update
 		if [[ "$only_flag" != true && "$stage_cont" == true ]]; then
 			echo "discovery-ports" > /tmp/zeroe/stage.zre
@@ -2228,7 +2248,7 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 		#Masscan open port discovery
 		####################################################################
 		####### Internal masscan command if adjustment is necessary ########
-		imscan="sudo masscan --open-only -p 1-65535 --rate=8000 --src-port=55555 --excludefile $nostrikes --include-file $filepath/logs/misc-files/$typevar-discoresults.txt -oG $filepath/logs/misc-files/$typevar-discoscan-masscan-tcp.txt"
+		imscan="sudo masscan --open-only -p 1-65535 --rate=8000 --src-port=55555 --excludefile $nostrikes --include-file "$filepath/logs/misc-files/$typevar-discoresults.txt" -oG $filepath/logs/misc-files/$typevar-discoscan-masscan-tcp.txt"
 		echo "imscan=\"$imscan\"" >> /tmp/zeroe/vars.zre
 		### Stored as variable to correctly reflect in report if changed ###
 		####################################################################
@@ -2271,7 +2291,7 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 		filtersusips
 		#Carve out TCP IP addresses and put them into a file
 		cat $filepath/logs/misc-files/$typevar-discoscan-masscan-tcp-nosusips.txt | grep 'Host' | awk '{print $4}' >> $filepath/logs/misc-files/$typevar-discoresults.txt #this excludes 100port-hosts
-	
+
 		#Stage -- update
 		if [ "$udp" = "y" ] || [ "$udp" = "yes" ] || [ "$U_opt" = true ]; then
 			echo "discovery-udp" > /tmp/zeroe/stage.zre
@@ -2485,7 +2505,7 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 			parsegrepnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 25,465,587,143,993,110,995 "$filepath/analysis/$typevar-emailHosts.txt"
 			parsegrepnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 389,636 "$filepath/analysis/$typevar-ldapHosts.txt"
 		else
-			echo -e "\e[36m [-] No open TCP ports detected -- TCP service scans skipped \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+			echo -e "\e[33m [!] No open TCP ports detected -- TCP service scans skipped \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
 		fi
 
 		#Stage -- update
@@ -2539,7 +2559,7 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 			genwindowshostlist_inscript
 			listiptohostname_inscript
 		else
-			echo -e "\e[36m [-] No open UDP ports detected -- UDP service scans skipped \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+			echo -e "\e[33m [!] No open UDP ports detected -- UDP service scans skipped \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		fi
 	fi
 
