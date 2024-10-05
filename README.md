@@ -9,25 +9,28 @@ Please consider supporting this project (especially if using it for commercial o
 
 # Features 
 1. Performs initial discovery scans for alive hosts and open ports
-2. Generates a file with alive hosts and a file with open TCP and UDP (if enabled) ports for reference
-3. Performs in-depth TCP and UDP (if enabled) service scans against alive hosts and open ports from discovery scans
-4. Includes a checkpoint system for resuming scans in case they're stopped before completion
-5. Option for both external and internal scans, which changes scan methodology appropriately
-6. Allows for enabling or disabling UDP scans
-8. Detects, alerts on, and excludes from service scans, hosts with more than 100 ports open
-    - It's highly unusual for a host to have this many ports open and indicates a possible deception host or firewall affecting scan results
-9. Generates a file with open ports in Nessus-ready format for faster scanning
-10. Accepts command switches, but reverts to interactive prompts if required switches are left out
-11. Detects and informs you of invalid targets
-12. Written as a single Bash script for maximum portability, compatibility, and ease of use
-13. Includes timestamps in terminal output and a log file for reference
-14. On internal scans, which typically include more target hosts, detects the total number of hosts and adjusts scan speeds accordingly
-15. Checks if running on MacOS and adjusts commands accordingly (untested)
-16. Includes a `--count` option to calculate and display the total number of target IP addresses
-17. Includes a  `--geniplist` option that generates a list of unique, single IP addresses from the IP addresses, ranges, and CIDRs in the passed file without needing ipcalc or prips
-18. Includes a `--only` option to enable only UDP scanning and/or running only the specified stage/scan
-     - Use case example: Initial run has UDP scans disabled for faster completion. Once completed, use --only and enable UDP to only run UDP scans while analyzing TCP results 
-19. Includes a  `--ngineer` option that enables the entry of custom masscan and nmap options for each scan (experimental)
+1. Generates a file with alive hosts and a file with open TCP and UDP (if enabled) ports for reference
+1. Performs in-depth TCP and UDP (if enabled) service scans against alive hosts and open ports from discovery scans
+1. Includes a checkpoint system for resuming scans in case they're stopped before completion
+1. Option for both external and internal scans, which changes scan methodology appropriately
+1. Allows for enabling or disabling UDP scans
+1. Detects, alerts on, and excludes from service scans, hosts with more than 100 ports open
+1   - It's highly unusual for a host to have this many ports open and indicates a possible deception host or firewall affecting scan results
+1. Generates a file with open ports in Nessus-ready format for faster scanning
+1. Accepts command switches, but reverts to interactive prompts if required switches are left out
+1. Detects and informs you of invalid targets
+1. Written as a single Bash script for maximum portability, compatibility, and ease of use
+1. Includes timestamps in terminal output and a log file for reference
+1. On internal scans, which typically include more target hosts, detects the total number of hosts and adjusts scan speeds accordingly
+1. Checks if running on MacOS and adjusts commands accordingly (untested)
+1. Includes a `--count` option to calculate and display the total number of target IP addresses
+1. Includes a `--geniplist` option that generates a list of unique, single IP addresses from the IP addresses, ranges, and CIDRs in the passed file without needing ipcalc or prips
+1. Includes a `--only` option to enable only UDP scanning and/or running only the specified stage/scan
+1   - Use case example: Initial run has UDP scans disabled for faster completion. Once completed, use --only and enable UDP to only run UDP scans while analyzing TCP results 
+1. Includes a `--ngineer` option that enables the entry of custom masscan and nmap options for each scan (experimental)
+1. Includes a `--listwinhosts` option that parses standard Nmap output and lists Windows hosts. Runs automatically when running a scan.
+1. Includes a `--parseports` option that parses grep-able Nmap output for the specified ports and outputs the results in a readable format (ip.address | p,o,r,t,s | se,rv,ic,e,s). Runs automatically when running a scan.
+1. Includes a ` --listiphostnames` option that parses standard Nmap output and lists IP address/hostname pairs. Runs automatically when running a scan.
 
 # Requirements
 - Nmap
@@ -41,7 +44,7 @@ Please consider supporting this project (especially if using it for commercial o
 # How To
 
 ## Interactive Prompts (Default method)
-1. `sudo ./zero-e.sh` 
+1. `sudo ./zero-e` 
 2. At the prompts, enter:
     1. the stage to start at
     1. the scan type (e.g. [i]nternal or [e]xternal)
@@ -52,12 +55,15 @@ Please consider supporting this project (especially if using it for commercial o
 3. Embrace your inner script kiddie, sit back in your reclining ergonomic chair, and take a nap while ZrE does your work for you
 
 ## Switches (Advanced)
-1. `sudo ./zero-e.sh [-e || -i] [-o output_directory] [-t targets_file] [-x [excludes_file]] [-U || -u] [-S [stage] || -s] [--count filename] [--geniplist filename] [--ngineer] [--only] [--defaults]`
-    - `--help`: Self-explanatory -- does not require sudo
-    - `--count`: Calculates and displays the total number of target IP addresses -- does not require sudo
-    - `--geniplist`: Generates a list of unique, single IP addresses from the IP addresses, ranges, and CIDRs in the passed file  -- does not require sudo
+1. `sudo ./zero-e [-e || -i] [-o output_directory] [-t targets_file] [-x [excludes_file]] [-U || -u] [-S [stage] || -s] [--count filename] [--geniplist filename] [--ngineer] [--only] [--defaults]`
+    - `--help`: Self-explanatory
+    - `--count`: Calculates and displays the total number of target IP addresses
+    - `--geniplist`: Generates a list of unique, single IP addresses from the IP addresses, ranges, and CIDRs in the passed file
     - `--ngineer`: Enables entry of custom masscan and Nmap command options
 	- `--only`: Only run UDP scans if enabled, and/or specified stage if provided -- does not apply to other options
+    - ` --listwinhosts`: Parses a standard Nmap file (.nmap) and lists the IP addresses of the Windows hosts
+    - `--parseports`:  Parses a grep-able Nmap file (.gnmap) for hosts with the specified ports open and outputs results in a readable format
+    - `--listiphostnames`: Parses a standard Nmap file (.nmap) and lists IP address and hostname pairs
     - `--defaults`: Runs ZrE using default settings -- using options with this will overwrite the default for that option
         - Default options are:
             - Stage (-S/-s) -- starts at initial alives scan
@@ -86,10 +92,10 @@ Please consider supporting this project (especially if using it for commercial o
 3. Embrace your inner script kiddie, sit back in your reclining ergonomic chair, and take a nap while ZrE does your work for you
 
 ## Install to $PATH
-1. Add `zero-e.sh` to PATH, so it's able to be called as a command from anywhere
+1. Add `zero-e` to PATH, so it's able to be called as a command from anywhere
     - Run the included `installzre.sh`, which will add Zero-E to PATH for you; or use `-b` to specify a destination. 
     - If you prefer doing this manually, here's how I set mine up: I set up an alias (`zrepath`) in my shell (`~/.zshrc`) that quickly copies ZrE into the primary PATH directory (`/usr/local/bin`) as `zeroe` for quick updating when changes are made 
-       - `alias zrepath='sudo cp /path/to/zero-e.sh /usr/local/bin/zeroe && sudo chmod +x /usr/local/bin/zeroe'`
+       - `alias zrepath='sudo cp /path/to/zero-e /usr/local/bin/zeroe && sudo chmod +x /usr/local/bin/zeroe'`
     - It must be copied to _/usr/local/bin_ so it's runnable with _sudo_
     - Whenever you pull updates, rerun `installzre.sh` or your alias
 2. Run Zero-E by calling it with `zeroe` if _zrepath.sh_ was used, or whatever you named it if set up manually, with or without options: `sudo zeroe [options]`
