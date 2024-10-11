@@ -178,5 +178,6 @@ Please consider supporting this project (especially if using it for commercial o
   
 # Planned improvements
 - Docker-ization
+- integrating ntfy.sh for completion notifications
 - Allowing IP addresses to be passed for targets and excludes (vs requiring a file)
 - Option to automate launching Nessus scans
