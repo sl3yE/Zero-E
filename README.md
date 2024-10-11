@@ -29,7 +29,7 @@ Please consider supporting this project (especially if using it for commercial o
 1   - Use case example: Initial run has UDP scans disabled for faster completion. Once completed, use --only and enable UDP to only run UDP scans while analyzing TCP results 
 1. Includes a `--ngineer` option that enables the entry of custom masscan and nmap options for each scan (experimental)
 1. Includes a `--listwinhosts` option that parses standard Nmap output and lists Windows hosts. Runs automatically when running a scan.
-1. Includes a `--parseports` option that parses grep-able Nmap output for the specified ports and outputs the results in a readable format (ip.address  p,o,r,t,s  se,rv,ic,e,s). Runs automatically when running a scan.
+1. Includes a `--parseports` option that parses grep-able Nmap output for the specified ports and outputs the results in a readable and grepable format. Runs automatically when running a scan.
 1. Includes a ` --listiphostnames` option that parses standard Nmap output and lists IP address/hostname pairs. Runs automatically when running a scan.
 
 # Requirements
