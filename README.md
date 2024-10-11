@@ -1,5 +1,5 @@
 <p align="center">
-<img src="https://github.com/Inscyght/Zero-E/blob/main/ZeroE-sticker.png" width="530" height="424" />
+<img src="https://github.com/Inscyght/Zero-E/blob/main/sticker-ZeroE.png" width="530" height="424" />
 </p>
 
 # Description
