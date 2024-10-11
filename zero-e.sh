@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-version="Zero-E (ZrE) v1.1.1"
+version="Zero-E (ZrE) v1.1.2"
 ###Functions
 function updatecheck { #Check version and update the script
 	{	
@@ -710,104 +710,161 @@ function genwindowshostlist_inscript { #For genwinhostlist when ran inside the s
     fi
 }
 
-function parsegrepnmap { #Parses grep-able nmap output for specified open ports
+function parsegrepnmap {
     local gnmapfile="$1"
     local portsofinterest="$2"
     local outputfilename="$3"
 
-	#Error handling
-	## Check if gnmapfile and ports are provided
+    # Error handling
     if [[ -z "$gnmapfile" || -z "$portsofinterest" ]]; then
         echo -e "\e[31m [X] Error: Invalid syntax -- Usage: --parseports <GrepableNmapFile> <Comma,Separated,Ports> [OutputFileName] \e[0m" >&2
         return 1
     elif [[ ! -f "$gnmapfile" ]]; then
-        echo -e "\e[31m [X] Error: File '$1' does not exist \e[0m" >&2
+        echo -e "\e[31m [X] Error: File '$gnmapfile' does not exist \e[0m" >&2
         return 1
     fi
 
-	#Parsing the gnmap file
-    # Parsing the gnmap file
-    if [[ -n "$outputfilename" ]]; then
-        (
-            grep '^Host:' "$gnmapfile" | \
-            sed -n 's/^Host: \([^ ]*\).*Ports: \(.*\)/\1|\2/p' | \
-            awk -v ports="$portsofinterest" '
-            BEGIN {
-                split(ports, portlist, ",")
-                for (i in portlist) portmap[portlist[i]] = 1
-            }
-            {
-                split($0, fields, "|")
-                ip = fields[1]
-                ports_field = fields[2]
-
-                ports_list = ""
-                services_list = ""
-
-                n = split(ports_field, port_entries, ", ")
-                for (i = 1; i <= n; i++) {
-                    port_entry = port_entries[i]
-                    split(port_entry, port_parts, "/")
-                    portnum = port_parts[1]
-                    state = port_parts[2]
-                    service = port_parts[5]
-                    if (state == "open" && portmap[portnum]) {
-                        if (ports_list == "") {
-                            ports_list = portnum
-                            services_list = service
-                        } else {
-                            ports_list = ports_list "," portnum
-                            services_list = services_list "," service
-                        }
-                    }
-                }
-                if (ports_list != "") {
-                    print ip " | " ports_list " | " services_list
-                }
-            }'
-        ) > "$outputfilename"
-		# Remove the output file if it's empty
-        if [[ ! -s "$outputfilename" ]] && [[ "$parsegrepnmap_inscript" == true ]]; then
-            rm "$outputfilename"
-        fi
-    else
+    if [[ -z "$outputfilename" ]]; then # First Scenario: Output to terminal
+        echo 'To parse the output for a specific port or service and output the results in ip:port/service format, save the results to a file and use the following command, changing the value of <PORT/SERVICE> and <resultsFilename>:'
+        echo ''
+		echo 'awk -F'\''\t'\'' -v t="PORT/SERVICE" '\''BEGIN{IGNORECASE=1} $2","$3 ~ "(^|,)" t "(,|$)" {print $1":"t}'\'' resultsFilename'
+        echo ''
+        # Output the data to the terminal
         grep '^Host:' "$gnmapfile" | \
-        sed -n 's/^Host: \([^ ]*\).*Ports: \(.*\)/\1|\2/p' | \
-        awk -v ports="$portsofinterest" '
-        BEGIN {
-            split(ports, portlist, ",")
-            for (i in portlist) portmap[portlist[i]] = 1
-        }
-        {
-            split($0, fields, "|")
-            ip = fields[1]
-            ports_field = fields[2]
+        sed -n 's/^Host: \([^ ]*\).*Ports: \(.*\)/\1\t\2/p' | \
+        awk -F'\t' -v ports="$portsofinterest" '
+		BEGIN {
+		    IGNORECASE = 1
+		    split(ports, portlist, ",")
+		    for (i in portlist) portmap[portlist[i]] = 1
+		}
+		{
+		    ip = $1
+		    ports_field = $2
 
-            ports_list = ""
-            services_list = ""
+		    ports_list = ""
+		    services_list = ""
 
-            n = split(ports_field, port_entries, ", ")
-            for (i = 1; i <= n; i++) {
-                port_entry = port_entries[i]
-                split(port_entry, port_parts, "/")
-                portnum = port_parts[1]
-                state = port_parts[2]
-                service = port_parts[5]
-                if (state == "open" && portmap[portnum]) {
-                    if (ports_list == "") {
-                        ports_list = portnum
-                        services_list = service
-                    } else {
-                        ports_list = ports_list "," portnum
-                        services_list = services_list "," service
-                    }
-                }
-            }
-            if (ports_list != "") {
-                print ip " | " ports_list " | " services_list
-            }
-        }'
-    fi
+		    n = split(ports_field, port_entries, ", ")
+		    for (j = 1; j <= n; j++) {
+		        port_entry = port_entries[j]
+		        split(port_entry, port_parts, "/")
+		        portnum = port_parts[1]
+		        state = port_parts[2]
+		        service = port_parts[5]
+		        if (state == "open" && portmap[portnum]) {
+		            if (ports_list == "") {
+		                ports_list = portnum
+		                services_list = service
+		            } else {
+		                ports_list = ports_list "," portnum
+		                services_list = services_list "," service
+		            }
+		        }
+		    }
+		    if (ports_list != "") {
+		        print ip "\t" ports_list "\t" services_list
+		    }
+		}'
+	elif [[ "$parsegrepnmap_inscript" == true ]]; then # Second Scenario: Output to file (instructions and data)
+		# Create a temporary file for data output
+		temp_data_output=$(mktemp)
+		# Parsing the gnmap file and outputting data to the temporary file
+		grep '^Host:' "$gnmapfile" | \
+		sed -n 's/^Host: \([^ ]*\).*Ports: \(.*\)/\1\t\2/p' | \
+		awk -F'\t' -v ports="$portsofinterest" '
+		BEGIN {
+		    IGNORECASE = 1
+		    split(ports, portlist, ",")
+		    for (i in portlist) portmap[portlist[i]] = 1
+		}
+		{
+		    ip = $1
+		    ports_field = $2
+
+		    ports_list = ""
+		    services_list = ""
+
+		    n = split(ports_field, port_entries, ", ")
+		    for (j = 1; j <= n; j++) {
+		        port_entry = port_entries[j]
+		        split(port_entry, port_parts, "/")
+		        portnum = port_parts[1]
+		        state = port_parts[2]
+		        service = port_parts[5]
+		        if (state == "open" && portmap[portnum]) {
+		            if (ports_list == "") {
+		                ports_list = portnum
+		                services_list = service
+		            } else {
+		                ports_list = ports_list "," portnum
+		                services_list = services_list "," service
+		            }
+		        }
+		    }
+		    if (ports_list != "") {
+		        print ip "\t" ports_list "\t" services_list
+		    }
+		}' > "$temp_data_output"
+
+		        # Check if the temporary data output file is empty
+		        if [[ -s "$temp_data_output" ]]; then
+		            # There is data, write instructions and data to the output file
+		            {
+		                echo 'To parse the contents for a specific port or service and output the results in ip:port/service format, use the following command, changing the value of <PORT/SERVICE>:'
+		                echo ''
+						echo 'awk -F'\''\t'\'' -v t="PORT/SERVICE" '\''BEGIN{IGNORECASE=1} $2","$3 ~ "(^|,)" t "(,|$)" {print $1":"t}'\'' '"$outputfilename"
+		                echo ''
+		                cat "$temp_data_output"
+		            } > "$outputfilename"
+		        else
+		            # No data, remove the output file if it exists
+		            rm -f "$outputfilename"
+		        fi
+		        # Clean up the temporary file
+		        rm -f "$temp_data_output"
+	else # Third Scenario: Instructions to terminal, data to file
+		echo 'To parse the output file for a specific port or service and output the results in ip:port/service format, use the following command, changing the value of <PORT/SERVICE>:'
+		echo ''
+		echo 'awk -F'\''\t'\'' -v t="PORT/SERVICE" '\''BEGIN{IGNORECASE=1} $2","$3 ~ "(^|,)" t "(,|$)" {print $1":"t}'\'' '"$outputfilename"
+		# Parsing the gnmap file and outputting data to the output file
+		grep '^Host:' "$gnmapfile" | \
+		sed -n 's/^Host: \([^ ]*\).*Ports: \(.*\)/\1\t\2/p' | \
+		awk -F'\t' -v ports="$portsofinterest" '
+		BEGIN {
+		    IGNORECASE = 1
+		    split(ports, portlist, ",")
+		    for (i in portlist) portmap[portlist[i]] = 1
+		}
+		{
+		    ip = $1
+		    ports_field = $2
+
+		    ports_list = ""
+		    services_list = ""
+
+		    n = split(ports_field, port_entries, ", ")
+		    for (j = 1; j <= n; j++) {
+		        port_entry = port_entries[j]
+		        split(port_entry, port_parts, "/")
+		        portnum = port_parts[1]
+		        state = port_parts[2]
+		        service = port_parts[5]
+		        if (state == "open" && portmap[portnum]) {
+		            if (ports_list == "") {
+		                ports_list = portnum
+		                services_list = service
+		            } else {
+		                ports_list = ports_list "," portnum
+		                services_list = services_list "," service
+		            }
+		        }
+		    }
+		    if (ports_list != "") {
+		        print ip "\t" ports_list "\t" services_list
+		    }
+		}' > "$outputfilename"
+	fi
 }
 
 function listiptohostname { #Lists IP addresses and their corresponding hostnames
@@ -1456,8 +1513,8 @@ if [ "$help_flag" = true ]; then
 	echo "  -u: Disables UDP scans -- cannot be used with -U"
 	echo "  -S: With no arguments, resumes from saved stage -- cannot be used with -s"
 	echo "      Will skip to the specified stage, if provided -- valid stages are:"
-	echo "      	discovery-alives"
-	echo "      	discovery-ports"
+	echo "      	discovery-alives (TCP-only)"
+	echo "      	discovery-ports (TCP-only)"
 	echo "      	discovery-udp"
 	echo "      	discovery-lists"
 	echo "      	services-tcp"
