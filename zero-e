@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-version="Zero-E (ZrE) v1.1.2"
+version="Zero-E (ZrE) v1.1.2.1"
 ###Functions
 function updatecheck { #Check version and update the script
 	{	
@@ -654,36 +654,54 @@ function genwindowshostlist {
 		return 1
 	fi
 
-    #awk command to parse Windows hosts
+    # awk command to parse Windows hosts
     if [[ -n "$outputfile" ]]; then
-        awk -v IGNORECASE=1 '
+        awk '
         /Nmap scan report for/ {
             line = $0
-            if (match(line, /\(([^)]+)\)/, arr)) {
-                ip = arr[1]
-            } else if (match(line, /Nmap scan report for\s+([0-9.]+)/, arr)) {
-                ip = arr[1]
+            ip = "Unknown IP"
+
+            # Check if line contains "("
+            if (index(line, "(") > 0) {
+                # IP is between "(" and ")"
+                start = index(line, "(") + 1
+                end = index(line, ")") - 1
+                ip = substr(line, start, end - start + 1)
             } else {
-                ip = "Unknown IP"
+                # IP is after "Nmap scan report for "
+                prefix = "Nmap scan report for "
+                start = index(line, prefix)
+                if (start > 0) {
+                    ip = substr(line, start + length(prefix))
+                }
             }
         }
-        /OS:.*Windows/ {
+        /OS:.*[Ww]indows/ {
             print ip
         }
         ' "$inputfile" | sort -u > "$outputfile"
     else
-        awk -v IGNORECASE=1 '
+        awk '
         /Nmap scan report for/ {
             line = $0
-            if (match(line, /\(([^)]+)\)/, arr)) {
-                ip = arr[1]
-            } else if (match(line, /Nmap scan report for\s+([0-9.]+)/, arr)) {
-                ip = arr[1]
+            ip = "Unknown IP"
+
+            # Check if line contains "("
+            if (index(line, "(") > 0) {
+                # IP is between "(" and ")"
+                start = index(line, "(") + 1
+                end = index(line, ")") - 1
+                ip = substr(line, start, end - start + 1)
             } else {
-                ip = "Unknown IP"
+                # IP is after "Nmap scan report for "
+                prefix = "Nmap scan report for "
+                start = index(line, prefix)
+                if (start > 0) {
+                    ip = substr(line, start + length(prefix))
+                }
             }
         }
-        /OS:.*Windows/ {
+        /OS:.*[Ww]indows/ {
             print ip
         }
         ' "$inputfile" | sort -u
@@ -763,7 +781,7 @@ function parsegrepnmap {
 		        }
 		    }
 		    if (ports_list != "") {
-		        print ip "\t" ports_list "\t" services_list
+		        print ip "    " ports_list "    " services_list
 		    }
 		}'
 	elif [[ "$parsegrepnmap_inscript" == true ]]; then # Second Scenario: Output to file (instructions and data)
@@ -803,7 +821,7 @@ function parsegrepnmap {
 		        }
 		    }
 		    if (ports_list != "") {
-		        print ip "\t" ports_list "\t" services_list
+		        print ip "    " ports_list "    " services_list
 		    }
 		}' > "$temp_data_output"
 
@@ -861,7 +879,7 @@ function parsegrepnmap {
 		        }
 		    }
 		    if (ports_list != "") {
-		        print ip "\t" ports_list "\t" services_list
+		        print ip "    " ports_list "    " services_list
 		    }
 		}' > "$outputfilename"
 	fi
@@ -871,27 +889,34 @@ function listiptohostname { #Lists IP addresses and their corresponding hostname
     local inputfile="$1"
     local outputfile="$2"
 
-    # Check if inputfile is provided and exists
-    if [[ -z "$inputfile" ]]; then
-        echo -e "\e[31m [X] Error: Invalid syntax -- Usage: --listiphostname <StandardNmapFile> [OutputFile]" >&2
-        return 1
-	elif [[ ! -f "$inputfile" ]]; then
-		echo -e "\e[31m [X] Error: File '$inputfile' does not exist \e[0m" >&2
-		return 1
-	fi
-
     if [[ -n "$outputfile" ]]; then
         awk '
         /^Nmap scan report for/ {
+            line = $0
             hostname = "Unknown"
             ip = ""
-            if (match($0, /^Nmap scan report for ([^ ]+) \(([^)]+)\)/, arr)) {
-                hostname = arr[1]
-                ip = arr[2]
-            } else if (match($0, /^Nmap scan report for ([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)/, arr)) {
-                ip = arr[1]
-                # Hostname remains "Unknown"
+
+            prefix = "Nmap scan report for "
+            prefix_length = length(prefix)
+            # Extract the rest of the line after the prefix
+            rest = substr(line, prefix_length + 1)
+
+            # Check if rest contains "(" indicating a hostname and IP
+            paren_pos = index(rest, "(")
+            if (paren_pos > 0) {
+                hostname = substr(rest, 1, paren_pos - 1)
+                # Remove any trailing spaces from hostname
+                sub(/[[:space:]]+$/, "", hostname)
+                ip_start = paren_pos + 1
+                ip_end = index(rest, ")") - 1
+                ip = substr(rest, ip_start, ip_end - paren_pos)
+            } else {
+                # No hostname, only IP is present
+                ip = rest
+                # Remove any leading/trailing spaces from IP
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", ip)
             }
+
             if (ip != "") {
                 print ip, hostname
             }
@@ -900,15 +925,31 @@ function listiptohostname { #Lists IP addresses and their corresponding hostname
     else
         awk '
         /^Nmap scan report for/ {
+            line = $0
             hostname = "Unknown"
             ip = ""
-            if (match($0, /^Nmap scan report for ([^ ]+) \(([^)]+)\)/, arr)) {
-                hostname = arr[1]
-                ip = arr[2]
-            } else if (match($0, /^Nmap scan report for ([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)/, arr)) {
-                ip = arr[1]
-                # Hostname remains "Unknown"
+
+            prefix = "Nmap scan report for "
+            prefix_length = length(prefix)
+            # Extract the rest of the line after the prefix
+            rest = substr(line, prefix_length + 1)
+
+            # Check if rest contains "(" indicating a hostname and IP
+            paren_pos = index(rest, "(")
+            if (paren_pos > 0) {
+                hostname = substr(rest, 1, paren_pos - 1)
+                # Remove any trailing spaces from hostname
+                sub(/[[:space:]]+$/, "", hostname)
+                ip_start = paren_pos + 1
+                ip_end = index(rest, ")") - 1
+                ip = substr(rest, ip_start, ip_end - paren_pos)
+            } else {
+                # No hostname, only IP is present
+                ip = rest
+                # Remove any leading/trailing spaces from IP
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", ip)
             }
+
             if (ip != "") {
                 print ip, hostname
             }
