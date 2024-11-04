@@ -4,6 +4,10 @@
 #Set default installation directory
 install_dir="/usr/local/bin"
 
+#cd to install script dir
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 #Parse command line options
 while getopts ":b:" opt; do
   case $opt in
