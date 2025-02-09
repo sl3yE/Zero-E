@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-version="Zero-E (ZrE) v1.1.2.1"
+version="Zero-E (ZrE) v1.2 by @Inscyght"
 ###Functions
 function updatecheck { #Check version and update the script
 	{	
@@ -69,7 +69,7 @@ function settype { #Set external or internal
 	fi
 }
 
-function output {
+function output { #sets the output dir
 	if [ -z "$o_opt" ] && [ "$defaults" = true ]; then
 		filepath="./zre-output"
 	elif [ -n "$o_opt" ]; then
@@ -109,9 +109,9 @@ function output {
 	###Create backup of output dir if scans have already ran
     local shouldBackup=false
     # Check for specific files in the $filepath and $filepath/reporting directories
-    if [ "$typevar" = "ext" ] && [ "$(find $filepath -maxdepth 1 -type f \( -name 'ext-*' \) 2>/dev/null)" ]; then # ||	[ "$typevar" = "ext" ] && [ "$(find $filepath/reporting -maxdepth 1 -type f -name '' 2>/dev/null)" ]
+    if [ "$typevar" = "ext" ] && [ "$(find $filepath -maxdepth 1 -type f \( -name 'ext-*' \) 2>/dev/null)" ]; then
         shouldBackup=true
-    elif [ "$typevar" = "int" ] && [ "$(find $filepath -maxdepth 1 -type f \( -name 'int-*' \) 2>/dev/null)" ]; then # || [ "$typevar" = "int" ] && [ "$(find $filepath/reporting -maxdepth 1 -type f -name '' 2>/dev/null)" ]
+    elif [ "$typevar" = "int" ] && [ "$(find $filepath -maxdepth 1 -type f \( -name 'int-*' \) 2>/dev/null)" ]; then
         shouldBackup=true
     fi
     # Proceed with backup if necessary
@@ -134,6 +134,12 @@ function output {
         cp -r "$filepath" "$newDir"
     fi
 
+	#Remove old files if they exist in the output dir and choosing fresh start
+	if { [ "$stage" = "script-start" ] && [ "$resume" != "y" ]; } || \
+	   { [ -f "$filepath/logs/misc-files/targets-file.zre" ] && [ "$(realpath "$t_opt")" != "$(cat "$filepath/logs/misc-files/targets-file.zre")" ]; }; then
+	    find "$filepath" -type f -name "${typevar}-*" -exec rm -f {} +
+	fi
+
 	mkdir -p $filepath/logs/
 	mkdir -p $filepath/logs/misc-files/
 	#mkdir -p $filepath/reporting/
@@ -143,14 +149,14 @@ function output {
 	filepath="$(realpath $filepath)"
 }
 
-function targets {	
+function targets {	#Sets the targets file
 	if [[ -z "$t_opt" && "$defaults" = true ]]; then
 		ips="targets.txt"
 		if [[ ! -f "$ips" ]]; then
 			echo -e "\e[31m [X] Error: The default targets file (./targets.txt) does not exist \e[0m" >&2
 			exit 1
 		elif [ ! -s "$ips" ]; then #Check if the file is empty
-        	echo -e "\\e[31m [X] Error: $ips is empty \\e[0m" >&2
+        	echo -e "\e[31m [X] Error: $ips is empty \e[0m" >&2
 			exit 1
 		fi
 		checkfile="$ips"
@@ -163,7 +169,7 @@ function targets {
 			echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed in file names \e[0m" >&2
 			exit 1
 		elif [ ! -s "$t_opt" ]; then #Check if the file is empty
-        	echo -e "\\e[31m [X] Error: $t_opt is empty \\e[0m" >&2
+        	echo -e "\e[31m [X] Error: $t_opt is empty \e[0m" >&2
 			exit 1
 		fi
 		ips="$t_opt"
@@ -176,7 +182,7 @@ function targets {
 			if [[ -z "$ips" ]] || [[ ! -f "$ips" ]]; then
 				echo -e "\e[31m [X] Error: You must pass an existing file containing the IP addresses (e.g. targets.txt) \e[0m" >&2
 			elif [ ! -s "$ips" ]; then #Check if the file is empty
-        		echo -e "\\e[31m [X] Error: $ips is empty \\e[0m" >&2
+        		echo -e "\e[31m [X] Error: $ips is empty \e[0m" >&2
 			else
 				if [[ "$ips" == "-"* ]]; then
 					echo -e "\e[31m [X] Error: File names starting with '-' may cause issues with commands \e[0m" >&2
@@ -196,13 +202,16 @@ function targets {
 
 	t_opt="$(realpath $ips)"
 	ips="$(realpath $ips)"
-	echo "     Generating temporary list of single IP addresses for targets..."
+	ips_log=$ips
+	echo "$ips_log" > $filepath/logs/misc-files/targets-file.zre
+	echo -ne "     Generating temporary list of single IP addresses for targets..."
 	geniplist "$ips" > /tmp/zeroe/targets-single-ips.zre
+	echo -e "\r     Generating temporary list of single IP addresses for targets... Done"
 	ips="/tmp/zeroe/targets-single-ips.zre"
 	t_opt="/tmp/zeroe/targets-single-ips.zre"
 }
 
-function excludes {
+function excludes { #Sets the excludes file
 	if [ -z "$x_opt" ] && [ "$defaults" = true ]; then
 		mkdir -p /tmp/zeroe
 		touch /tmp/zeroe/nullexcludes.zre
@@ -254,14 +263,15 @@ function excludes {
 	if [[ $nostrikes != "/tmp/zeroe/nullexcludes.zre" ]]; then
 		x_opt="$(realpath $nostrikes)"
 		nostrikes="$(realpath $nostrikes)"
-		echo "     Generating temporary list of single IP addresses for excludes..."
+		echo -ne "     Generating temporary list of single IP addresses for excludes..."
 		geniplist "$nostrikes" > /tmp/zeroe/excludes-single-ips.zre
+		echo -e "\r     Generating temporary list of single IP addresses for excludes... Done"
 		nostrikes="/tmp/zeroe/excludes-single-ips.zre"
 		x_opt="/tmp/zeroe/excludes-single-ips.zre"
 	fi
 }
 
-function enableudp {
+function enableudp { #Enables UDP scans
 	if [[ "$u_opt" = false && "$U_opt" = false && "$defaults" = true ]]; then
 		udp="y"
 		U_opt=true
@@ -293,18 +303,13 @@ function enableudp {
 		exit 1
 	fi
 
-	#if [[ "$only_flag" == true ]] && ([[ "$U_opt" == true ]] || [[ "$udp" == "y" ]]) && [[ "$stage" == "methodology" ]]; then
-	#	echo -e "\e[31m [X] Error: UDP scans are not used in report generation \e[0m"
-	#	exit 1
-	#fi
-
 	if [[ "$only_flag" == true ]] && ([[ "$U_opt" == true ]] || [[ "$udp" == "y" ]]) && [[ "$S_opt" != *"udp"* && "$stage" != *"udp"* ]] && [[ "$stage" != "script-start" && "$stage" != "discovery-lists" ]]; then #If only UDP scans are enabled, but TCP stage is selected
 		echo -e "\e[31m [X] Error: A TCP stage cannot be selected if only UDP scans are enabled \e[0m" >&2
 		exit 1
 	fi
 }	
 
-function filtersusips {
+function filtersusips { #filters out IPs that may be deception hosts
     #Use awk to count the occurrences of each IP and print those with <= 100 entries to the output file
     #[ -e "$susips" ] && rm "$susips" #2>>"$filepath/logs/$typevar-errors.log"
     #[ -e "$susoutput" ] && rm "$susoutput" #2>>"$filepath/logs/$typevar-errors.log"
@@ -393,7 +398,7 @@ function checkinvalidips { #Checks targets file for invalid entries
 
 	if [ $anyinvalid -ne 0 ]; then
 		allvalid=0
-		if [[ -z "$t_opt" && "$defaults" = true ]] || [ -n "$t_opt" ] || [[ "$countopt" == "y" ]] || [[ "$geniplistopt" == "y" ]]; then
+		if [[ -z "$t_opt" && "$defaults" = true ]] || [ -n "$t_opt" ]  || [ -n "$x_opt" ] || [[ "$countopt" == "y" ]] || [[ "$geniplistopt" == "y" ]]; then
 			exit 1
 		fi
 	else
@@ -405,7 +410,7 @@ function stageinit { #The checkpoint system
 	mkdir -p /tmp/zeroe
 
 	function checkinvalidstage { #Defines the function to check for invalid stage
-		if [[ "$stage" = "script-start" || "$stage" = "discovery-ports" || "$stage" = "discovery-alives" || "$stage" = "discovery-udp" || "$stage" = "discovery-lists" || "$stage" = "services-tcp" || "$stage" = "services-udp" ]]; then # || "$stage" = "methodology"
+		if [[ "$stage" = "script-start" || "$stage" = "discovery-ports" || "$stage" = "discovery-alives" || "$stage" = "discovery-udp" || "$stage" = "discovery-lists" || "$stage" = "services-tcp" || "$stage" = "services-udp" ]]; then
 			return 0
 		else	
 			echo -e "\e[31m [X] Error: Invalid stage '$stage' -- check help or README for valid stages \e[0m" >&2
@@ -537,7 +542,7 @@ function stagefilescheck { #Checks if required files are present for the specifi
     			checkstagefiles "$nostrikes" "$ips"
     			;;
     		"discovery-ports")
-    			checkstagefiles "$nostrikes" "$ips" "$filepath/logs/misc-files/$typevar-discoscan-masscan-tcp.txt"
+    			checkstagefiles "$nostrikes" "$ips"
     			;;
     		"discovery-udp")
     			checkstagefiles "$nostrikes" "$ips"
@@ -575,7 +580,7 @@ function stagefilescheck { #Checks if required files are present for the specifi
     			checkstagefiles "$nostrikes" "$ips"
     			;;
     		"discovery-ports")
-    			checkstagefiles "$nostrikes" "$filepath/logs/misc-files/$typevar-discoresults.txt"
+    			checkstagefiles "$nostrikes" "$filepath/$typevar-alives.txt"
     			;;
     		"discovery-udp")
     			if [ -f "$filepath/logs/misc-files/$typevar-discoresults.txt" ]; then
@@ -619,11 +624,13 @@ function stagefilescheck { #Checks if required files are present for the specifi
         #done
 		if [[ -f /tmp/zeroe/stage.zre ]]; then
         	echo -e "\e[31m [X] Error: Required ZrE files for $stage stage do not exist" >&2
-			echo -e "            Resume ZrE from the saved $(cat /tmp/zeroe/stage.zre) stage, or restart ZrE \e[0m" >&2
+			#echo -e " 		     Required files: ${missing_files[@]}" >&2
+			echo -e "            Resume ZrE from the saved $(cat /tmp/zeroe/stage.zre) stage, run preceding stage, or restart ZrE \e[0m" >&2
         	exit 1
 		else
 			echo -e "\e[31m [X] Error: Required ZrE files for $stage stage do not exist" >&2
-			echo -e "            Correct output directory if repeating stage, or restart ZrE \e[0m" >&2
+			#echo -e " 		     Required files: ${missing_files[@]}" >&2
+			echo -e "            Correct output directory if repeating stage, run preceding stage, or restart ZrE \e[0m" >&2
         	exit 1
 		fi
     fi
@@ -745,7 +752,7 @@ function parsegrepnmap {
     if [[ -z "$outputfilename" ]]; then # First Scenario: Output to terminal
         echo 'To parse the output for a specific port or service and output the results in ip:port/service format, save the results to a file and use the following command, changing the value of <PORT/SERVICE> and <resultsFilename>:'
         echo ''
-		echo 'awk -F'\''\t'\'' -v t="PORT/SERVICE" '\''BEGIN{IGNORECASE=1} $2","$3 ~ "(^|,)" t "(,|$)" {print $1":"t}'\'' resultsFilename'
+		echo 'awk -F'\'' '\'' -v t="PORT/SERVICE" '\''BEGIN{IGNORECASE=1} $2","$3 ~ "(^|,)" t "(,|$)" {print $1":"t}'\'' resultsFilename'
         echo ''
         # Output the data to the terminal
         grep '^Host:' "$gnmapfile" | \
@@ -831,7 +838,7 @@ function parsegrepnmap {
 		            {
 		                echo 'To parse the contents for a specific port or service and output the results in ip:port/service format, use the following command, changing the value of <PORT/SERVICE>:'
 		                echo ''
-						echo 'awk -F'\''\t'\'' -v t="PORT/SERVICE" '\''BEGIN{IGNORECASE=1} $2","$3 ~ "(^|,)" t "(,|$)" {print $1":"t}'\'' '"$outputfilename"
+						echo 'awk -F'\'' '\'' -v t="PORT/SERVICE" '\''BEGIN{IGNORECASE=1} $2","$3 ~ "(^|,)" t "(,|$)" {print $1":"t}'\'' '"$outputfilename"
 		                echo ''
 		                cat "$temp_data_output"
 		            } > "$outputfilename"
@@ -844,7 +851,7 @@ function parsegrepnmap {
 	else # Third Scenario: Instructions to terminal, data to file
 		echo 'To parse the output file for a specific port or service and output the results in ip:port/service format, use the following command, changing the value of <PORT/SERVICE>:'
 		echo ''
-		echo 'awk -F'\''\t'\'' -v t="PORT/SERVICE" '\''BEGIN{IGNORECASE=1} $2","$3 ~ "(^|,)" t "(,|$)" {print $1":"t}'\'' '"$outputfilename"
+		echo 'awk -F'\'' '\'' -v t="PORT/SERVICE" '\''BEGIN{IGNORECASE=1} $2","$3 ~ "(^|,)" t "(,|$)" {print $1":"t}'\'' '"$outputfilename"
 		# Parsing the gnmap file and outputting data to the output file
 		grep '^Host:' "$gnmapfile" | \
 		sed -n 's/^Host: \([^ ]*\).*Ports: \(.*\)/\1\t\2/p' | \
@@ -888,6 +895,15 @@ function parsegrepnmap {
 function listiptohostname { #Lists IP addresses and their corresponding hostnames
     local inputfile="$1"
     local outputfile="$2"
+
+    # Check if inputfile is provided and exists
+    if [[ -z "$inputfile" ]]; then
+        echo -e "\e[31m [X] Error: Invalid syntax -- Usage: --listiphostname <StandardNmapFile> [OutputFile]" >&2
+        return 1
+	elif [[ ! -f "$inputfile" ]]; then
+		echo -e "\e[31m [X] Error: File '$inputfile' does not exist \e[0m" >&2
+		return 1
+	fi
 
     if [[ -n "$outputfile" ]]; then
         awk '
@@ -984,7 +1000,7 @@ function statusnmap {
 		(
 		    while kill -0 $pid >/dev/null 2>&1; do
 		        sleep 900  # 15 minutes
-		        printf "\r%-${#indicator}s\r" "" # Clear continuous status line
+		        printf "\r\e[K" # Clear continuous status line
 		        echo ""
 				echo ""
 				tail -n 5 "$periodicfile"
@@ -994,11 +1010,12 @@ function statusnmap {
 		status_pid=$! #Capture the PID of the status process
 
 		while kill -0 $pid >/dev/null 2>&1; do
-			i=$(( (i+1) % 4 ))
-			printf "\r${indicator:$i:1} $contstatus"
-			sleep 0.2
-		done
-		printf "\r%-${#indicator}s\r" "" #Clears status indicator line
+    	    i=$(( (i+1) % ${#indicator} ))
+    	    # "\r" returns to the beginning of the line, "\e[K" clears from the cursor to the end.
+    	    printf "\r\e[K%s %s" "${indicator:$i:1}" "$contstatus"
+    	    sleep 0.2
+    	done
+		printf "\r\e[K" #Clears status indicator line
 
 		kill $status_pid #Kill the status process when done
 }
@@ -1007,28 +1024,28 @@ function statusmasscan {
 	indicator="^-_-^"
 		# Start a background process to cat the last line of the file every 15 minutes
 		(
-		    while kill -0 $pid >/dev/null 2>&1; do
-		        sleep 900  # 15 minutes
-		        echo ""
-				echo ""
-				tail -n 5 "$periodicfile"
-		        echo ""
-				echo ""
-		    done
-		) &
-		status_pid=$! #Capture the PID of the status process
+    	    while kill -0 $pid >/dev/null 2>&1; do
+    	        sleep 900  # 15 minutes
+    	        printf "\r\e[K"
+    	        echo ""
+    	        tail -n 5 "$periodicfile"
+    	        echo ""
+    	    done
+    	) &
+    	status_pid=$!  # Capture the PID of the background status process
 
 		while kill -0 $pid >/dev/null 2>&1; do
-			i=$(( (i+1) % 4 ))
-			printf "\r${indicator:$i:1} $contstatus"
-			sleep 0.2
-		done
-		printf "\r%-${#indicator}s\r" "" #Clears status indicator line
+    	    i=$(( (i+1) % ${#indicator} ))
+    	    printf "\r\e[K%s %s" "${indicator:$i:1}" "$contstatus"
+    	    sleep 0.2
+    	done
 
-		kill $status_pid #Kill the status process when done
+		printf "\r\e[K" #Clears status indicator line
+
+		kill $status_pid 2>/dev/null #Kill the status process when done
 }
 
-function errorcheck {
+function errorcheck { #Checks for errors in command output
 	errorlog="/logs/$typevar-errors.log"
 
 	if [ $exitstatus -ne 0 ]; then
@@ -1050,10 +1067,12 @@ function whenstopped {
 		kill $status_pid
     fi
 	#Display exiting status
-	echo ""
-	echo -e "\e[33m [!] Zero-E stopped -- saving progress... \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+	if [[ "$firewallset" = true ]]; then
+		removefirewallrule
+	fi
+	echo -e "\e[33m [!] Zero-E stopped -- saving progress... \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
 	sleep 3
-	sed -i 's/\x1b\[[0-9;]*m//g' $filepath/logs/$typevar-timestamps.log #cleans up timestamps log
+	sed -i -e 's/\x1b\[[0-9;]*m//g' -e 's/\x1b\[A//g' -e 's/\x1b\[K//g' "$filepath/logs/$typevar-timestamps.log" #cleans up timestamps log
 	sed -i '/nocapture = servername/d' paused.conf 2>/dev/null #Removes line that breaks masscan --resume function
 	sed -i 's/adapter-port = [0-9]*-[0-9]*/adapter-port = 40000-41023/' paused.conf 2>/dev/null #Fixes another line that breaks masscan --resume function... cmon masscan, do better
 	#Remove the trap to prevent it from repeating
@@ -1068,30 +1087,63 @@ function zrecleanup {
 }
 
 function checktools {
-	oscheck=$(uname)
-	if [ $oscheck = "Darwin" ]; then #For st00pid Macs
-		missing=()
-		for tool in "${mactools[@]}"; do
-			if ! command -v "$tool" >/dev/null 2>&1; then
-				missing+=("$tool --")
-			fi
-		done
-		if [ ${#missing[@]} -gt 0 ]; then
-		  echo -e "\e[31m [X] Error: the following required tools are not installed: ${missing[*]}. Install them with 'sudo apt install <tool name>' \e[0m" >&2
-		  exit 1
-		fi
-	else #For Linux
-		missing=()
-		for tool in "${linuxtools[@]}"; do
-			if ! command -v "$tool" >/dev/null 2>&1; then
-				missing+=("<$tool> ")
-			fi
-		done
-		if [ ${#missing[@]} -gt 0 ]; then
-		  echo -e "\e[31m [X] Error: the following required tools are not installed: ${missing[*]}. Install them with 'sudo apt install <tool name>' \e[0m" >&2
-		  exit 1
-		fi
-	fi
+  	oscheck=$(uname)
+  	if [ "$oscheck" = "Darwin" ]; then  # For macOS
+    	missing=()
+    	for tool in "${mactools[@]}"; do
+      		if ! command -v "$tool" >/dev/null 2>&1; then
+				if [ "$tool" = "realpath" ]; then
+					missing+=(coreutils)
+				else
+					missing+=("$tool")
+				fi
+	  		fi
+    	done
+    	if [ ${#missing[@]} -gt 0 ]; then
+      		echo -e "\e[31m[X] Error: The following required tools are not installed: ${missing[*]}\e[0m"
+      		# Ask if user wants to install
+      		read -p "Would you like to install them now using Homebrew? <y/n> " resp
+      		if [[ "$resp" =~ ^[Yy]$ ]]; then
+        		# Install missing tools
+        		for tool in "${missing[@]}"; do
+          			echo "Installing $tool..."
+          			brew install "$tool"
+        		done
+        		echo -e "\e[32m[+] All missing required tools have been installed\e[0m\n"
+      		else
+        		echo -e "\nYou can install them manually with:\n  brew install <tool>\n"
+        		exit 1
+      		fi
+    	fi
+  	else  # For Linux
+    	missing=()
+    	for tool in "${linuxtools[@]}"; do
+      		if ! command -v "$tool" >/dev/null 2>&1; then
+        		if [ "$tool" = "realpath" ]; then
+					missing+=(coreutils)
+				else
+					missing+=("$tool")
+				fi
+      		fi
+    	done
+    	if [ ${#missing[@]} -gt 0 ]; then
+      		echo -e "\e[31m[X] Error: The following required tools are not installed: ${missing[*]}\e[0m"
+      		# Ask if user wants to install
+      		read -p "Would you like to install them now using apt? <y/n> " resp
+      		if [[ "$resp" =~ ^[Yy]$ ]]; then
+        		# Update apt cache and install missing tools
+        		sudo apt update
+        		for tool in "${missing[@]}"; do
+          			echo "Installing $tool..."
+          			sudo apt install -y "$tool"
+        		done
+        		echo -e "\e[32m[+] All missing required tools have been installed\e[0m\n"
+      		else
+        		echo -e "\nYou can install them manually with:\n  sudo apt install <tool>\n"
+        		exit 1
+      		fi
+    	fi
+  	fi
 }
 
 function zrengineer { #Enables users to customize commands
@@ -1458,6 +1510,69 @@ function geniplist { # Main function to generate IP list
     expand_ips "$checkfile" | sort -n -t . -k 1,1 -k 2,2 -k 3,3 -k 4,4 | uniq
 }
 
+function alivesandportscheck { #checks if alives and openPorts lists are populated
+	if grep -q "\S" "$filepath/$typevar-alives.txt" && grep -q "\S" "$filepath/$typevar-openPorts.txt"; then
+		echo -e "\e[32m [+] Discovery scans completed -- $(date) \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+	elif ! grep -q "\S" "$filepath/$typevar-alives.txt" && grep -q "\S" "$filepath/$typevar-openPorts.txt"; then
+		echo -e "\e[33m [!] No alive hosts detected -- if unexpected, check targets or inquire about scan defenses or other interference \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+		echo -e "\e[33m [!] Exiting Zero-E... \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+		zrecleanup
+		exit 1
+	elif grep -q "\S" "$filepath/$typevar-alives.txt" && ! grep -q "\S" "$filepath/$typevar-openPorts.txt"; then
+		echo -e "\e[33m [!] No open ports detected -- if unexpected, check targets or inquire about scan defenses or other interference \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+		echo -e "\e[33m [!] Exiting Zero-E... \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+		zrecleanup
+		exit 1
+	else
+		echo -e "\e[33m [!] No alive hosts or open ports detected -- if unexpected, check targets or inquire about scan defenses or other interference \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+		echo -e "\e[33m [!] Exiting Zero-E... \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+		zrecleanup
+		exit 1
+	fi
+}
+
+function removefirewallrule { #removes the firewall rule used in int methodology
+	firewallset=false
+	oscheck=$(uname)
+	if [ $oscheck = "Darwin" ]; then #For st00pid Macs
+		cp "/etc/pf.conf" "$filepath/logs/pf.conf.bak-postscript"
+		sudo sed -i "/block drop in proto tcp from any to any port 55555/d" /etc/pf.conf
+		pfctl -f /etc/pf.conf >> $filepath/logs/mac-pfctl.log 2>&1
+		if [ "$macpf" = "Disabled" ]; then
+			pfctl -d >> $filepath/logs/mac-pfctl.log 2>&1 #disable pfctl
+		fi
+	else #For Linux	
+		sudo iptables -D INPUT -p tcp --dport 55555 -j DROP 2>/dev/null
+	fi
+	echo -e "\e[33m [!] Firewall rule removed \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+}
+
+function setfirewallrule { #sets the firewall rule used in int methodology
+	firewallset=true
+	oscheck=$(uname)
+	if [ $oscheck = "Darwin" ]; then #For st00pid Macs
+		macpf=$(pfctl -s info | grep -o "Status: .*" | cut -d' ' -f2) #gets pfctl status
+		if [ "$macpf" = "Disabled" ]; then
+			pfctl -e >> $filepath/logs/mac-pfctl.log 2>&1 #enable pfctl
+		fi
+		if pfctl -sr 2>> $filepath/logs/mac-pfctl.log | grep -q "block drop in proto tcp from any to any port 55555"; then #check if rule exists
+    		echo -e "\e[33m [!] Firewall rule on port 55555 to prevent RST packets already exists -- skipping rule creation \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+		else
+			cp "/etc/pf.conf" "$filepath/logs/pf.conf.bak-prescript"
+    		echo "block drop in proto tcp from any to any port 55555" | sudo tee -a /etc/pf.conf >> $filepath/logs/mac-pfctl.log #creates the rule
+    		sudo pfctl -f /etc/pf.conf >> $filepath/logs/mac-pfctl.log 2>&1 #loads the pfctl configuration
+			echo -e "\e[33m [!] Firewall rule created on port 55555 to prevent RST packet interference \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+		fi
+	else #For Linux
+		if sudo iptables -C INPUT -p tcp --dport 55555 -j DROP 2> /dev/null; then
+			echo -e "\e[33m [!] Firewall rule on port 55555 to prevent RST packets already exists -- skipping rule creation \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+		else	
+			sudo iptables -A INPUT -p tcp --dport 55555 -j DROP
+			echo -e "\e[33m [!] Firewall rule created on port 55555 to prevent RST packet interference \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+		fi
+	fi
+}
+
 updatecheck
 
 #--Switches
@@ -1619,7 +1734,7 @@ elif [ "$listiphostnames_flag" = true ]; then
 fi
 
 #Check sudo
-if [[ $EUID -ne 0 ]]; then # && [[ "$arg" != "--help" || "$arg" != "--version" || "$arg" != "--count" || "$arg" != "--geniplist" ]]; then
+if [[ $EUID -ne 0 ]]; then # && [[ "$arg" != "--help" || "$arg" != "--version" || "$arg" != "--count" || "$arg" != "--geniplist" || "$arg" != "--parseports" ]]; then
    	echo -e "\e[31m [X] Error: $(basename $0) requires sudo \e[0m" >&2
    	exit 1
 fi
@@ -1670,7 +1785,7 @@ while getopts ':eio:t:x:UusS:' opt "${remaining_args[@]}" 2>/dev/null; do
 				echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed in file names \e[0m" >&2
 				exit 1
 			elif [ ! -s "$OPTARG" ]; then #Check if the file is empty
-        		echo -e "\\e[31m [X] Error: $OPTARG is empty \\e[0m" >&2
+        		echo -e "\e[31m [X] Error: $OPTARG is empty \e[0m" >&2
 				exit 1
             else
 				t_opt="$OPTARG"
@@ -1733,7 +1848,7 @@ while getopts ':eio:t:x:UusS:' opt "${remaining_args[@]}" 2>/dev/null; do
 	esac
 done
 #Check if the last option was -o or -t and if the arg is missing.
-last_arg=${@: -1}
+last_arg="${@: -1}"
 if [[ $last_arg == "-o" ]] && [[ -z "$o_opt" ]]; then
 	echo -e "\e[31m [X] Error: -o requires a directory name or path \e[0m" >&2
 	exit 1
@@ -1765,6 +1880,7 @@ fi
 #Banner
 echo "$version -- https://github.com/Inscyght/Zero-E"
 echo "Support this project -- https://github.com/sponsors/Inscyght"
+echo "                        https://buymeacoffee.com/inscyght"
 echo ''
 
 #Set the stage to start at
@@ -1773,7 +1889,7 @@ if [ -f "/tmp/zeroe/stage.zre" ] && [ -f "/tmp/zeroe/vars.zre" ] && [[ "$resume"
 	if [[ "$(cat /tmp/zeroe/initdir.zre)" = "$(pwd)" ]]; then #check if the current and previous working dir are equal, then...
 		: #silently continue to...
 	else
-		cd $(cat /tmp/zeroe/initdir.zre) #change dirs to the previous working dir and...
+		cd $(cat /tmp/zeroe/initdir.zre) || exit #change dirs to the previous working dir (or exit if cannot) and...
 	fi
 	#parse options to resume scans
 	while IFS='=' read -r key rest; do # The value is everything after the first '=', preserving internal quotes and spaces
@@ -1806,8 +1922,9 @@ else #Starting new scan or from specific stage
 	#Set the target IPs file
 	targets
 	#Calculate total number of target hosts
-	echo "     Counting total number of target hosts..."
+	echo -ne "     Counting total number of target hosts..."
 	totaltargets
+	echo -e "\r     Counting total number of target hosts... $total_hosts"
 	#Set the excluded IPs file
 	excludes
 	#Check if targets and excludes are the same and repeat loop while they are
@@ -1819,8 +1936,9 @@ else #Starting new scan or from specific stage
 		x_opt=""
 		while true; do
 			targets
-			echo "     Counting total number of target hosts..."
+			echo -ne "     Counting total number of target hosts..."
 			totaltargets
+			echo -e "\r     Counting total number of target hosts... $total_hosts"
 			excludes
 			if cmp -s "$ips" "$nostrikes"; then
 				echo -e "\e[31m [X] Error: You seem very confused, script kiddie... all of the targets are still excluded \e[0m" >&2
@@ -1857,6 +1975,8 @@ cd $filepath
 #Sets trap for when script stops before finishing
 trap whenstopped INT TERM
 
+echo -e "\e[35m \n [=] Zero-E started -- progress updates for scans displayed every 15 minutes \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+
 #=============EXTERNAL=============
 if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = "external" ] || [ "$type" = "External" ] || [ "$type" = "Ext" ] || [ "$type" = "ext" ]; then
 
@@ -1869,12 +1989,12 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 			echo -e "\e[36m [-] Resuming alive host discovery scans -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 			echo -e "\e[36m     Using options from resumed scan \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		else
-			echo -e "\e[35m \n [=] Zero-E started -- progress updates for scans displayed every 15 minutes \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 			echo -e "\e[36m [-] Starting discovery scans -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		fi
 
 		###Nmap alive host discovery
-		echo -e "\e[36m [-] Discovering alive hosts with Nmap... \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		echo -ne "\e[36m [-] Discovering alive hosts with Nmap... \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		echo ""
 		ntdscan="nmap -n -vv -sn -oG - --excludefile $nostrikes -iL $ips" #Stored as variable for report generation
 		echo "ntdscan=\"$ntdscan\"" >> /tmp/zeroe/vars.zre
 		if [[ "$resume" = "y" ]]; then
@@ -1890,16 +2010,6 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 			#	fi
 			#else
 				eval "$ntdscan" 1>>"$filepath/logs/misc-files/$typevar-discoscan-nmap.gnmap" 2>>"$filepath/logs/$typevar-errors.log" &
-				#Generate alives file when only flag is used
-				eval "$ntdscan" 1>>"$filepath/logs/misc-files/$typevar-discoscan-nmap.gnmap" 2>>"$filepath/logs/$typevar-errors.log" &
-				if [[ "$stage" == "discovery-alives" ]] && [[ "$only_flag" == true ]]; then
-					cat "$filepath/logs/misc-files/$typevar-discoscan-nmap.gnmap" | grep 'Up' | awk '{print $2}' | sort -u | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n > $filepath/$typevar-alives.txt
-					if grep -q "\S" "$filepath/$typevar-alives.txt"; then
-						echo -e "\e[32m [+] Alive hosts discovered -- "$(date)" \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-					else
-						echo -e "\e[33m [!] No alive hosts detected \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-					fi
-				fi
 			#fi
 		fi
 		#Status indicator
@@ -1913,6 +2023,17 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 		exitstatus=$?
 		errorcheck	
 
+		printf "\033[A\r\e[K\e[32m [+] Discovering alive hosts with Nmap... Done \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		#Generate alives file
+		cat "$filepath/logs/misc-files/$typevar-discoscan-nmap.gnmap" | grep 'Up' | awk '{print $2}' | sort -u | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n > $filepath/$typevar-alives.txt
+		if [[ "$stage" == "discovery-alives" ]] && [[ "$only_flag" == true ]]; then	
+			if grep -q "\S" "$filepath/$typevar-alives.txt"; then
+				echo "" | tee -a "$filepath/logs/$typevar-timestamps.log"
+				echo -e "\e[32m [+] Alive hosts discovered -- "$(date)" \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+			else
+				echo -e "\e[33m [!] No alive hosts detected \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+			fi
+		fi
 		#Stage update
 		if [[ "$only_flag" != true && "$stage_cont" == true ]]; then
 			echo "discovery-ports" > /tmp/zeroe/stage.zre
@@ -1949,7 +2070,13 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 		fi
 		pid=$!
 		sleep 4
-		echo -e "\e[36m [-] Discovering alive hosts and open TCP ports with Masscan... $(grep -o '[0-9]\+:[0-9]\+:[0-9]\+ remaining' "$filepath/logs/misc-files/$typevar-masscan-tcp.log" | tail -1) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		if [[ "$only_flag" != true ]]; then #Prevents unwanted newline in terminal output
+		    if ! tail -n 1 "$filepath/logs/$typevar-timestamps.log" | grep -q 'Zero-E started'; then
+		        echo "" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		    fi
+		fi
+		echo -ne "\e[36m [-] Discovering alive hosts and open TCP ports with Masscan... $(grep -o '[0-9]\+:[0-9]\+:[0-9]\+ remaining' "$filepath/logs/misc-files/$typevar-masscan-tcp.log" | tail -1) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		echo ""
 		#Status indicator
 		periodicfile="$filepath/logs/misc-files/$typevar-masscan-tcp.log"
 		contstatus="Scanning TCP ports"
@@ -1960,6 +2087,7 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 		exitstatus=$?
 		errorcheck
 
+		printf "\033[A\r\e[K\e[32m [+] Discovering alive hosts and open TCP ports with Masscan... Done\e[0m\n" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		#Filter out hosts with more than 100 ports open
 		susinput="$filepath/logs/misc-files/$typevar-discoscan-masscan-tcp.txt"
 		susips="$filepath/$typevar-100port-hosts-tcp.txt"
@@ -1977,11 +2105,17 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 		#Carve out Masscan TCP IP addresses and put them into a file
 		{ cat $filepath/logs/misc-files/$typevar-discoscan-masscan-tcp-nosusips.txt | grep 'Host' | awk '{print $4}' ; } >> $filepath/logs/misc-files/$typevar-discoresults.txt # this excludes 100port-hosts. {;} groups the piped commands so all output is redirected
 
+		#Generate list of alive hosts
+		cat $filepath/logs/misc-files/$typevar-discoresults.txt | sort -u | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n >> $filepath/$typevar-alives.txt
+		cp $filepath/$typevar-alives.txt $filepath/$typevar-alives-tmp.txt
+		cat $filepath/$typevar-alives-tmp.txt | sort -u | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n > $filepath/$typevar-alives.txt
+		rm $filepath/$typevar-alives-tmp.txt
+
 		#Stage -- update
-		if [ "$udp" = "y" ] || [ "$udp" = "yes" ] || [ "$U_opt" = true ]; then 
+		if [ "$udp" = "y" ] || [ "$udp" = "yes" ] || [ "$U_opt" = true ]; then
 			echo "discovery-udp" > /tmp/zeroe/stage.zre
 			stage="discovery-udp"
-		elif [[ "$stage_cont" == true ]]; then
+		elif [[ "$stage_cont" == true ]] || { [[ "$stage" == "discovery-ports" ]] && [[ "$only_flag" == true ]]; }; then
 			echo "discovery-lists" > /tmp/zeroe/stage.zre
 			stage="discovery-lists"
 		fi
@@ -1990,9 +2124,6 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 
 	#Stage -- start
 	if { [[ "$stage" == "discovery-udp" ]] && [[ "$udp" = "y" || "$udp" = "yes" || "$U_opt" = true ]]; } || { [[ "$udp" == "y" ]] && [[ "$only_flag" == true ]] && [[ "$stage" != "discovery-lists" && "$stage" != "services-udp" ]]; }; then
-		if [[ "$only_flag" == true && "$resume" != "y" ]]; then
-		echo -e "\e[35m \n [=] Zero-E started -- progress updates for scans displayed every 15 minutes \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-		fi
 		#UDP open port scan
 		#15094 top ports is 99% effective. Reference this chart for --top-port number effectiveness: https://nmap.org/book/performance-port-selection.html
 		nudpa="nmap -v -Pn -sU --open --min-rate 1000 --max-rate 3000 --top-ports 15094 --max-retries 3 --host-timeout 30 -oG "$filepath/logs/misc-files/$typevar-discoscan-nmap-udp.gnmap" --excludefile $nostrikes -iL $ips -d"
@@ -2014,7 +2145,8 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 			fi
 		fi
 		pid=$!
-		echo -e "\e[36m [-] Discovering alive hosts and open UDP ports with Nmap... \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		echo -ne "\e[36m [-] Discovering alive hosts and open UDP ports with Nmap... \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		echo ""
 		#Status indicator
 		periodicfile="$filepath/logs/misc-files/$typevar-discoscan-nmap-udp.log"
 		contstatus="Scanning UDP ports"
@@ -2025,6 +2157,7 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 		exitstatus=$?
 		errorcheck
 		
+		printf "\033[A\r\e[K\e[32m [+] Discovering alive hosts and open UDP ports with Nmap... Done\e[0m\n" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		#Carve out UDP IP addresses and put them into a file
 		if [ -s "$filepath/$typevar-100port-hosts-tcp.txt" ]; then
 			awk 'NR==FNR{ips[$0];next} {for (ip in ips) if ($0 !~ ip) print}' $filepath/$typevar-100port-hosts-tcp.txt "$filepath/logs/misc-files/$typevar-discoscan-nmap-udp.gnmap" > $filepath/logs/misc-files/$typevar-discoscan-nmap-udp-nosusips.txt #Filter out hosts with more than 100 open tcp ports
@@ -2041,29 +2174,34 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 	#Stage -- start
 	if [[ "$stage" == "discovery-lists" ]]; then
 		#Make final list of ordered, unique alive hosts excluding sus ips
-		cat $filepath/logs/misc-files/$typevar-discoresults.txt | sort -u | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n > $filepath/$typevar-alives.txt
+		cat $filepath/logs/misc-files/$typevar-discoresults.txt | sort -u | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n >> $filepath/$typevar-alives.txt
+		cp $filepath/$typevar-alives.txt $filepath/$typevar-alives-tmp.txt
+		cat $filepath/$typevar-alives-tmp.txt | sort -u | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n > $filepath/$typevar-alives.txt
+		rm $filepath/$typevar-alives-tmp.txt
 
 		#Generate list of all open ports
 		if ! { [[ "$udp" == "y" ]] && [[ "$only_flag" == true ]]; }; then
-			echo '===========' > $filepath/$typevar-openPorts.txt
-			echo '    TCP' >> $filepath/$typevar-openPorts.txt
-			echo '===========' >> $filepath/$typevar-openPorts.txt
+			#echo '===========' > $filepath/$typevar-openPorts.txt
+			#echo '    TCP' >> $filepath/$typevar-openPorts.txt
+			#echo '===========' >> $filepath/$typevar-openPorts.txt
 			cat $filepath/logs/misc-files/$typevar-discoscan-masscan-tcp-nosusips.txt | grep 'open' | cut -d ' ' -f5 | cut -d '/' -f1 | sort -u >> $filepath/rangetemp.txt
 			#continue with ports list
 			rangeout="$filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt"
 			singleportstorange
 			sed -i '/^[ \t]*$/d' "$rangeout" #Removes blank lines and lines that only contain spaces
-			cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt >> $filepath/$typevar-openPorts.txt
-			echo ' ' >> $filepath/$typevar-openPorts.txt
+			cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt > $filepath/$typevar-openPorts.txt
+			sed -i 's/^/TCP\//' $filepath/$typevar-openPorts.txt
+			#echo ' ' >> $filepath/$typevar-openPorts.txt
 		fi
 		if [ "$udp" = "y" ] || [ "$udp" = "yes" ] || [ "$U_opt" = true ]; then
 			if [[ "$only_flag" == true ]]; then
-				echo '===========' > $filepath/$typevar-openPorts.txt
-			else
-				echo '===========' >> $filepath/$typevar-openPorts.txt
+				rm $filepath/$typevar-openPorts.txt 2>/dev/null
+			#	echo '===========' > $filepath/$typevar-openPorts.txt
+			#else
+			#	echo '===========' >> $filepath/$typevar-openPorts.txt
 			fi
-			echo '    UDP' >> $filepath/$typevar-openPorts.txt
-			echo '===========' >> $filepath/$typevar-openPorts.txt
+			#echo '    UDP' >> $filepath/$typevar-openPorts.txt
+			#echo '===========' >> $filepath/$typevar-openPorts.txt
 			if [ -s "$filepath/$typevar-100port-hosts-tcp.txt" ]; then
 				cat $filepath/logs/misc-files/$typevar-discoscan-nmap-udp-nosusips.txt | grep '/open' | cut -d ' ' -f4 | cut -d '/' -f1 | sort -u >> $filepath/rangetempu.txt
 			else
@@ -2075,11 +2213,12 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 			singleportstorange
 			sed -i '/^[ \t]*$/d' "$rangeout" #Removes blank lines and lines that only contain spaces
 			cat $filepath/logs/misc-files/$typevar-portsfornmap-udp.txt >> $filepath/$typevar-openPorts.txt
+			sed -i '/^TCP\//! s/^/UDP\//' $filepath/$typevar-openPorts.txt
 		fi
 		nessusports 2>/dev/null
 
 		#Status update
-		echo -e "\e[32m [+] Alive hosts and open ports discovered -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		alivesandportscheck
 		if [ -s "$filepath/$typevar-100port-hosts-tcp.txt" ] && [ -s "$filepath/$typevar-100port-hosts-udp.txt" ]; then
 			echo -e "\e[33m [!] Excluding potential deception or firewall-protected hosts showing more than 100 open TCP/UDP ports -- recommend inquiring about hosts in ext-100port-hosts-tcp.txt and ext-100port-hosts-udp.txt \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		elif [ -s "$filepath/$typevar-100port-hosts-tcp.txt" ]; then
@@ -2119,7 +2258,7 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 						eval "$ntscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 					else
 						echo -e "\e[33m [!] Using ZrE ngineer options for Nmap TCP service scan \e[0m"
-						eval "nmap $zreng_tcps_opts -sV -Pn -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt | paste -sd "," -) -oA $filepath/$typevar-tcp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+						eval "nmap $zreng_tcps_opts -sV -Pn -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt | paste -sd "," -) --reason -oA $filepath/$typevar-tcp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 					fi
 				else
 					eval "$ntscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
@@ -2187,7 +2326,7 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 						eval "$nsudp" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 					else
 						echo -e "\e[33m [!] Using ZrE ngineer options for Nmap UDP service scan \e[0m"
-						eval "nmap $zreng_udps_opts -sU -sV -Pn -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-udp.txt | paste -sd "," -) -oA $filepath/$typevar-udp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+						eval "nmap $zreng_udps_opts -sU -sV -Pn --reason -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-udp.txt | paste -sd "," -) -oA $filepath/$typevar-udp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 					fi
 				else
 					eval "$nsudp -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
@@ -2218,8 +2357,8 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 		fi
 	fi
 
-	zrecleanup
 	echo -e "\e[35m [=] Zero-E completed -- happy hacking! \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+	zrecleanup
 fi
 ###===========INTERNAL=============
 if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = "internal" ] || [ "$type" = "Internal" ] || [ "$type" = "Int" ] || [ "$type" = "int" ]; then
@@ -2235,32 +2374,10 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 			echo -e "\e[36m [-] Resuming alive host discovery scans -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 			echo -e "\e[36m     Using options from resumed scan \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		else
-			echo -e "\e[35m \n [=] Zero-E started -- progress updates for scans displayed every 15 minutes \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 			echo -e "\e[36m [-] Starting discovery scans -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		fi
 		#Prevent system from sending RST packets by setting the firewall to block packets returning to the Masscan origin port
-		oscheck=$(uname)
-		if [ $oscheck = "Darwin" ]; then #For st00pid Macs
-			macpf=$(pfctl -s info | grep -o "Status: .*" | cut -d' ' -f2) #gets pfctl status
-			if [ "$macpf" = "Disabled" ]; then
-				pfctl -e >> $filepath/logs/mac-pfctl.log 2>&1 #enable pfctl
-			fi
-			if pfctl -sr 2>> $filepath/logs/mac-pfctl.log | grep -q "block drop in proto tcp from any to any port 55555"; then #check if rule exists
-    			echo -e "\e[33m [!] Firewall rule on port 55555 to prevent RST packets already exists -- skipping rule creation \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-			else
-				cp "/etc/pf.conf" "$filepath/logs/pf.conf.bak-prescript"
-    			echo "block drop in proto tcp from any to any port 55555" | sudo tee -a /etc/pf.conf >> $filepath/logs/mac-pfctl.log #creates the rule
-    			pfctl -f /etc/pf.conf >> $filepath/logs/mac-pfctl.log 2>&1 #loads the pfctl configuration
-				echo -e "\e[33m [!] Firewall rule created on port 55555 to prevent RST packets \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-			fi
-		else #For Linux
-			if sudo iptables -C INPUT -p tcp --dport 55555 -j DROP 2> /dev/null; then
-				echo -e "\e[33m [!] Firewall rule on port 55555 to prevent RST packets already exists -- skipping rule creation \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-			else	
-				sudo iptables -A INPUT -p tcp --dport 55555 -j DROP
-				echo -e "\e[33m [!] Firewall rule created on port 55555 to prevent RST packets \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-			fi
-		fi
+		setfirewallrule
 
 		#Masscan alive host discovery
 		alivesmscan="sudo masscan --rate=8000 --src-port=55555 --excludefile $nostrikes --include-file $ips -oG $filepath/logs/misc-files/$typevar-masscanalives-results.txt"
@@ -2302,7 +2419,8 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 			fi
 			pid=$!
 			sleep 4
-			echo -e "\e[36m [-] Discovering alive hosts with masscan... $(grep -o '[0-9]\+:[0-9]\+:[0-9]\+ remaining' "$filepath/logs/misc-files/$typevar-masscan-tcp.log" | tail -1) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+			echo -ne "\e[36m [-] Discovering alive hosts with masscan... $(grep -o '[0-9]\+:[0-9]\+:[0-9]\+ remaining' "$filepath/logs/misc-files/$typevar-masscan-tcp.log" | tail -1) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+			echo ""
 			#Status indicator
 			periodicfile="$filepath/logs/misc-files/$typevar-masscan-tcp.log"
 			contstatus="Scanning hosts"
@@ -2312,6 +2430,8 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 			exitstatus=$?
 			errorcheck
 		fi 
+
+		printf "\033[A\r\e[K\e[32m [+] Discovering alive hosts with Masscan... Done\e[0m\n" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		#Filter out hosts with more than 100 ports open
 		susinput="$filepath/logs/misc-files/$typevar-masscanalives-results.txt"
 		susips="$filepath/$typevar-100port-hosts-tcp.txt"
@@ -2321,16 +2441,28 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 		cat $filepath/logs/misc-files/$typevar-discoscan-masscan-tcp-nosusips.txt | grep 'Host' | awk '{print $4}' >> "$filepath/logs/misc-files/$typevar-discoresults.txt" #this excludes 100port-hosts
 		#cat $filepath/logs/misc-files/$typevar-masscanalives-results.txt | grep 'Host' | awk '{print $4}' | sort -u >> $filepath/$typevar-masscan-alives.txt
 
-		#Generate alives file when only flag is used
+		#Generate alives file
+		cat "$filepath/logs/misc-files/$typevar-discoresults.txt" | sort -u | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n > "$filepath/$typevar-alives.txt"
 		if [[ "$stage" == "discovery-alives" ]] && [[ "$only_flag" == true ]]; then
-			cat "$filepath/logs/misc-files/$typevar-discoresults.txt" | sort -u | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n > "$filepath/$typevar-alives.txt"
 			if grep -q "\S" "$filepath/$typevar-alives.txt"; then
 				echo -e "\e[32m [+] Alive hosts discovered -- "$(date)" \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 			else
-				echo -e "\e[33m [!] No alive hosts detected \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+				echo -e "\e[33m [!] No alive hosts detected -- if unexpected, check targets or inquire about scan defenses or other interference \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+				#Remove firewall rule
+				removefirewallrule
+				echo -e "\e[33m [!] Exiting Zero-E... \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+				zrecleanup
+				exit 1
 			fi
 		else
-			echo -e "\e[32m [+] Alive hosts discovered -- "$(date)" \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+			if ! grep -q "\S" "$filepath/logs/misc-files/$typevar-discoresults.txt" 2>/dev/null; then
+				echo -e "\e[33m [!] No alive hosts detected -- if unexpected, check targets or inquire about scan defenses or other interference \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+				#Remove firewall rule
+				removefirewallrule
+				echo -e "\e[33m [!] Exiting Zero-E... \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+				zrecleanup
+				exit 1
+			fi
 		fi
 
 		#Stage -- update
@@ -2343,10 +2475,12 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 	
 	#Stage -- start
 	if [[ "$stage" == "discovery-ports" ]] && ! { [[ "$udp" == "y" ]] && [[ "$only_flag" == true ]]; }; then
+		
+		setfirewallrule
 		#Masscan open port discovery
 		####################################################################
 		####### Internal masscan command if adjustment is necessary ########
-		imscan="sudo masscan --open-only -p 1-65535 --rate=8000 --src-port=55555 --excludefile $nostrikes --include-file "$filepath/logs/misc-files/$typevar-discoresults.txt" -oG $filepath/logs/misc-files/$typevar-discoscan-masscan-tcp.txt"
+		imscan="sudo masscan --open-only -p 1-65535 --rate=8000 --src-port=55555 --excludefile $nostrikes --include-file "$filepath/$typevar-alives.txt" -oG $filepath/logs/misc-files/$typevar-discoscan-masscan-tcp.txt"
 		echo "imscan=\"$imscan\"" >> /tmp/zeroe/vars.zre
 		### Stored as variable to correctly reflect in report if changed ###
 		####################################################################
@@ -2356,22 +2490,35 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 			resume=''
 			echo -e "\e[36m [-] Resuming masscan open port discovery scans -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 			echo -e "\e[36m     Using options from resumed scan \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+			if [[ "$firewallset" != true ]]; then
+				setfirewallrule
+			fi
 			masscan --resume paused.conf >> "$filepath/logs/misc-files/$typevar-masscan-tcp.log" 2>&1 &
 		else
-			if [[ "$ngineer_mode" == true ]]; then
+			if [[ "$ngineer_mode" == true ]]; then #for ngineer mode
 				if [[ "$ngineer_ports_default" == true ]]; then	
+					if [[ "$firewallset" != true ]]; then
+						setfirewallrule
+					fi
 					eval "$imscan" >> "$filepath/logs/misc-files/$typevar-masscan-tcp.log" 2>&1 &
 				else
 					echo -e "\e[33m [!] Using ZrE ngineer options for masscan open ports scan \e[0m"
-					eval "masscan $zreng_ports_opts --open-only --excludefile $nostrikes --include-file $ips -oG $filepath/logs/misc-files/$typevar-discoscan-masscan-tcp.txt" >> "$filepath/logs/misc-files/$typevar-masscan-tcp.log" 2>&1 &
+					if [[ "$firewallset" != true ]]; then
+						setfirewallrule
+					fi
+					eval "masscan $zreng_ports_opts --open-only --excludefile $nostrikes --include-file $filepath/$typevar-alives.txt -oG $filepath/logs/misc-files/$typevar-discoscan-masscan-tcp.txt" >> "$filepath/logs/misc-files/$typevar-masscan-tcp.log" 2>&1 &
 				fi
 			else
+				if [[ "$firewallset" != true ]]; then
+					setfirewallrule
+				fi
 				eval "$imscan" >> "$filepath/logs/misc-files/$typevar-masscan-tcp.log" 2>&1 &
 			fi
 		fi
 		pid=$!
 		sleep 4
-		echo -e "\e[36m [-] Discovering open TCP ports with Masscan... $(grep -o '[0-9]\+:[0-9]\+:[0-9]\+ remaining' "$filepath/logs/misc-files/$typevar-masscan-tcp.log" | tail -1) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		echo -ne "\e[36m [-] Discovering open TCP ports with Masscan... $(grep -o '[0-9]\+:[0-9]\+:[0-9]\+ remaining' "$filepath/logs/misc-files/$typevar-masscan-tcp.log" | tail -1) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		echo ""
 		#Status indicators
 		periodicfile="$filepath/logs/misc-files/$typevar-masscan-tcp.log"
 		contstatus="Scanning TCP ports"
@@ -2382,6 +2529,7 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 		exitstatus=$?
 		errorcheck
 
+		printf "\033[A\r\e[K\e[32m [+] Discovering open TCP ports with Masscan... Done\e[0m\n" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		#Filter out hosts with more than 100 ports open
 		susinput="$filepath/logs/misc-files/$typevar-discoscan-masscan-tcp.txt"
 		susips="$filepath/$typevar-100port-hosts-tcp.txt"
@@ -2390,11 +2538,17 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 		#Carve out TCP IP addresses and put them into a file
 		cat $filepath/logs/misc-files/$typevar-discoscan-masscan-tcp-nosusips.txt | grep 'Host' | awk '{print $4}' >> $filepath/logs/misc-files/$typevar-discoresults.txt #this excludes 100port-hosts
 
+		#Generate list of alive hosts
+		cat $filepath/logs/misc-files/$typevar-discoresults.txt | sort -u | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n >> $filepath/$typevar-alives.txt
+		cp $filepath/$typevar-alives.txt $filepath/$typevar-alives-tmp.txt
+		cat $filepath/$typevar-alives-tmp.txt | sort -u | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n > $filepath/$typevar-alives.txt
+		rm $filepath/$typevar-alives-tmp.txt
+
 		#Stage -- update
 		if [ "$udp" = "y" ] || [ "$udp" = "yes" ] || [ "$U_opt" = true ]; then
 			echo "discovery-udp" > /tmp/zeroe/stage.zre
 			stage="discovery-udp"
-		elif [[ "$stage_cont" == true ]]; then 
+		elif [[ "$stage_cont" == true ]] || { [[ "$stage" == "discovery-ports" ]] && [[ "$only_flag" == true ]]; }; then
 			echo "discovery-lists" > /tmp/zeroe/stage.zre
 			stage="discovery-lists"
 		fi
@@ -2403,9 +2557,6 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 
 	#Stage -- start
 	if { [[ "$stage" == "discovery-udp" ]] && [[ "$udp" = "y" || "$udp" = "yes" || "$U_opt" = true ]]; } || { [[ "$udp" == "y" ]] && [[ "$only_flag" == true ]] && [[ "$stage" != "discovery-lists" && "$stage" != "services-udp" ]]; }; then
-		if [[ "$only_flag" == true && "$resume" != "y" ]]; then
-		echo -e "\e[35m \n [=] Zero-E started -- progress updates for scans displayed every 15 minutes \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-		fi
 		#UDP open port scan
 		if [[ "$resume" = "y" ]]; then
 			resume=''
@@ -2441,7 +2592,8 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 			fi
 		fi
 		pid=$!
-		echo -e "\e[36m [-] Discovering alive hosts and open UDP ports with Nmap... \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		echo -ne "\e[36m [-] Discovering alive hosts and open UDP ports with Nmap... \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		echo ""
 		#Status indicator
 		periodicfile="$filepath/logs/misc-files/$typevar-discoscan-nmap-udp.log"
 		contstatus="Scanning UDP ports"
@@ -2452,6 +2604,7 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 		exitstatus=$?
 		errorcheck
 
+		printf "\033[A\r\e[K\e[32m [+] Discovering alive hosts and open UDP ports with Nmap... Done\e[0m\n" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		#Carve out UDP IP addresses and put them into a file
 		if [ -s "$filepath/$typevar-100port-hosts-tcp.txt" ]; then
 			awk 'NR==FNR{ips[$0];next} {for (ip in ips) if ($0 !~ ip) print}' $filepath/$typevar-100port-hosts-tcp.txt $filepath/logs/misc-files/$typevar-discoscan-nmap-udp.gnmap > $filepath/logs/misc-files/$typevar-discoscan-nmap-udp-nosusips.txt #Filter out hosts with more than 100 open tcp ports
@@ -2467,51 +2620,39 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 
 	#Stage discovery-lists -- start
 	if [[ "$stage" == "discovery-lists" ]]; then
-		#Status update
-		if [[ "$udp" == "y" ]] && [[ "$only_flag" == true ]]; then
-			echo -e "\e[32m [+] Alive hosts and open ports discovered -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-		else
-			echo -e "\e[32m [+] Open ports discovered -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-		fi
 		#Remove firewall rule
-		if ! { [[ "$udp" == "y" ]] && [[ "$only_flag" == true ]] }; then
-			oscheck=$(uname)
-			if [ $oscheck = "Darwin" ]; then #For st00pid Macs
-				cp "/etc/pf.conf" "$filepath/logs/pf.conf.bak-postscript"
-				sudo sed -i "/block drop in proto tcp from any to any port 55555/d" /etc/pf.conf
-				pfctl -f /etc/pf.conf >> $filepath/logs/mac-pfctl.log 2>&1
-				if [ "$macpf" = "Disabled" ]; then
-					pfctl -d >> $filepath/logs/mac-pfctl.log 2>&1 #disable pfctl
-				fi
-			else #For Linux	
-				sudo iptables -D INPUT -p tcp --dport 55555 -j DROP
-			fi
-			echo -e "\e[33m [!] Firewall rule removed \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		if ! [[ "$udp" == "y" && "$only_flag" == true ]]; then
+			removefirewallrule
 		fi
 		
 		#Make final list of ordered, unique alive hosts excluding sus ips
-		cat $filepath/logs/misc-files/$typevar-discoresults.txt | sort -u | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n > $filepath/$typevar-alives.txt
+		cat $filepath/logs/misc-files/$typevar-discoresults.txt | sort -u | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n >> $filepath/$typevar-alives.txt
+		cp $filepath/$typevar-alives.txt $filepath/$typevar-alives-tmp.txt
+		cat $filepath/$typevar-alives-tmp.txt | sort -u | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n > $filepath/$typevar-alives.txt
+		rm $filepath/$typevar-alives-tmp.txt
 
 		#Generate list of all open ports
 		if ! { [[ "$udp" == "y" ]] && [[ "$only_flag" == true ]]; }; then
-			echo '===========' > $filepath/$typevar-openPorts.txt
-			echo '    TCP' >> $filepath/$typevar-openPorts.txt
-			echo '===========' >> $filepath/$typevar-openPorts.txt
+			#echo '===========' > $filepath/$typevar-openPorts.txt
+			#echo '    TCP' >> $filepath/$typevar-openPorts.txt
+			#echo '===========' >> $filepath/$typevar-openPorts.txt
 			cat $filepath/logs/misc-files/$typevar-discoscan-masscan-tcp-nosusips.txt | grep 'open' | cut -d ' ' -f5 | cut -d '/' -f1 | sort -u >> $filepath/rangetemp.txt
 			rangeout="$filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt"
 			singleportstorange
 			sed -i '/^[ \t]*$/d' "$rangeout" #Removes blank lines and lines that only contain spaces
-			cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt >> $filepath/$typevar-openPorts.txt
-			echo '' >> $filepath/$typevar-openPorts.txt
+			cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt > $filepath/$typevar-openPorts.txt
+			sed -i 's/^/TCP\//' $filepath/$typevar-openPorts.txt
+			#echo '' >> $filepath/$typevar-openPorts.txt
 		fi
 		if [ "$udp" = "y" ] || [ "$udp" = "yes" ] || [ "$U_opt" = true ]; then
 			if [[ "$only_flag" == true ]]; then
-				echo '===========' > $filepath/$typevar-openPorts.txt
-			else
-				echo '===========' >> $filepath/$typevar-openPorts.txt
+				rm $filepath/$typevar-openPorts.txt 2>/dev/null
+			#	echo '===========' > $filepath/$typevar-openPorts.txt
+			#else
+			#	echo '===========' >> $filepath/$typevar-openPorts.txt
 			fi
-			echo '    UDP' >> $filepath/$typevar-openPorts.txt
-			echo '===========' >> $filepath/$typevar-openPorts.txt
+			#echo '    UDP' >> $filepath/$typevar-openPorts.txt
+			#echo '===========' >> $filepath/$typevar-openPorts.txt
 			if [ -s "$filepath/$typevar-100port-hosts-tcp.txt" ]; then
 				cat $filepath/logs/misc-files/$typevar-discoscan-nmap-udp-nosusips.txt | grep '/open' | cut -d ' ' -f4 | cut -d '/' -f1 | sort -u >> $filepath/rangetemp.txt
 			else
@@ -2521,10 +2662,18 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 			singleportstorange
 			sed -i '/^[ \t]*$/d' "$rangeout" #Removes blank lines and lines that only contain spaces
 			cat $filepath/logs/misc-files/$typevar-portsfornmap-udp.txt >> $filepath/$typevar-openPorts.txt
+			sed -i '/^TCP\//! s/^/UDP\//' $filepath/$typevar-openPorts.txt
 		fi
 		nessusports 2>/dev/null
-		
+		# Verify that the open ports file is not empty
+		#if [[ ! -s "$filepath/$typevar-openPorts.txt" ]]; then
+		#    echo -e "\e[33m [!] No open ports detected on discovered hosts -- exiting Zero-E... \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		#    zrecleanup
+		#	exit 1
+		#fi
+
 		#Status update
+		alivesandportscheck
 		if [ -s "$filepath/$typevar-100port-hosts-tcp.txt" ] && [ -s "$filepath/$typevar-100port-hosts-udp.txt" ]; then
 			echo -e "\e[33m [!] Excluding potential deception or firewall-protected hosts showing more than 100 open TCP/UDP ports -- recommend inquiring about hosts in $typevar-100port-hosts-tcp.txt and $typevar-100port-hosts-udp.txt \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		elif [ -s "$filepath/$typevar-100port-hosts-tcp.txt" ]; then
@@ -2630,7 +2779,7 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 						eval "$nsudp" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 					else
 						echo -e "\e[33m [!] Using ZrE ngineer options for Nmap UDP service scan \e[0m"
-						eval "nmap $zreng_udps_opts -sU -sV -Pn -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-udp.txt | paste -sd "," -) -oA $filepath/$typevar-udp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+						eval "nmap $zreng_udps_opts -sU -sV -Pn --reason -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-udp.txt | paste -sd "," -) -oA $filepath/$typevar-udp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 					fi
 				else
 					eval "$nsudp -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
@@ -2666,6 +2815,9 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 	#fi #Stage end
 
 	#fi
-	zrecleanup
+	if [[ "$firewallset" = true ]]; then
+		removefirewallrule
+	fi
 	echo -e "\e[35m [=] Zero-E completed -- happy hacking! \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+	zrecleanup
 fi
