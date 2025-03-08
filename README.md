@@ -131,7 +131,7 @@ AUXILIARY OPTIONS (Enable additional functionality):"
        - `alias zrepath='sudo cp /path/to/zero-e /usr/local/bin/zeroe && sudo chmod +x /usr/local/bin/zeroe'`
     - It must be copied to _/usr/local/bin_ so it's runnable with _sudo_
     - Whenever you pull updates, rerun `installzre.sh` or your alias
-2. Run Zero-E by calling it with `zeroe` if _zrepath.sh_ was used, or whatever you named it if set up manually, with or without options: `sudo zeroe [options]`
+2. Run Zero-E by calling it with `zeroe` if _installzre.sh_ was used, or whatever you named it if set up manually, with or without options: `sudo zeroe [options]`
 3. Embrace your inner script kiddie, sit back in your reclining ergonomic chair, and take a nap while ZrE does your work for you
 
 ## Stage system
