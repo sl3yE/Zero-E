@@ -26,7 +26,7 @@ Please consider supporting this project (especially if using it for commercial o
     - Useful for large networks with long scan times
 1. For internal scans, which typically include more target hosts, detects the total number of hosts and adjusts scan speeds accordingly
 1. Includes functions to calculate and display the total number of target IP addresses, and to generate a list of unique, single IP addresses from the IP addresses, ranges, and CIDRs in the passed file without needing ipcalc or prips
-1. Generates a file with open ports in Nessus-ready format for faster scanning
+1. Generates a file with open ports in Nessus-ready format for faster vulnerability scanning
 1. Written as a single Bash script for maximum portability, compatibility, and ease of use
 1. Includes timestamps in terminal output and a log file for reference
 1. Checks if running on MacOS and adjusts commands accordingly (untested)
