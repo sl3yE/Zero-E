@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-version="Zero-E (ZrE) v1.2 by @Inscyght"
+version="Zero-E (ZrE) v1.3 by @Inscyght"
 ###Functions
 function updatecheck { #Check version and update the script
 	{	
@@ -86,6 +86,8 @@ function output { #sets the output dir
 				echo -e "\e[31m [X] Error: Directory names starting with '-' may cause issues with commands \e[0m" >&2
 			elif [[ "$filepath" == *" "* ]]; then
 				echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed in file names \e[0m" >&2
+			elif [[ "$filepath" == "/dev/null" ]]; then
+				echo -e "\e[31m [X] Error: /dev/null cannot be used as an output directory \e[0m" >&2
 			elif [ -n "$filepath" ]; then
 				break
 			fi
@@ -142,7 +144,6 @@ function output { #sets the output dir
 
 	mkdir -p $filepath/logs/
 	mkdir -p $filepath/logs/misc-files/
-	#mkdir -p $filepath/reporting/
 	mkdir -p $filepath/analysis/
 
 	o_opt="$(realpath $filepath)"
@@ -150,6 +151,13 @@ function output { #sets the output dir
 }
 
 function targets {	#Sets the targets file
+	if [[ "$session_flag" = true && -n "$session" ]]; then
+        session_dir="/var/lib/zeroe/sessions/$session"
+        targets_file="$session_dir/targets-single-ips.zre"
+    else
+        targets_file="/var/lib/zeroe/targets-single-ips.zre"
+    fi
+	
 	if [[ -z "$t_opt" && "$defaults" = true ]]; then
 		ips="targets.txt"
 		if [[ ! -f "$ips" ]]; then
@@ -203,72 +211,80 @@ function targets {	#Sets the targets file
 	t_opt="$(realpath $ips)"
 	ips="$(realpath $ips)"
 	ips_log=$ips
-	echo "$ips_log" > $filepath/logs/misc-files/targets-file.zre
 	echo -ne "     Generating temporary list of single IP addresses for targets..."
-	geniplist "$ips" > /tmp/zeroe/targets-single-ips.zre
+	geniplist "$ips" > "$targets_file"
 	echo -e "\r     Generating temporary list of single IP addresses for targets... Done"
-	ips="/tmp/zeroe/targets-single-ips.zre"
-	t_opt="/tmp/zeroe/targets-single-ips.zre"
+	ips="$targets_file"
+    t_opt="$targets_file"
 }
 
-function excludes { #Sets the excludes file
-	if [ -z "$x_opt" ] && [ "$defaults" = true ]; then
-		mkdir -p /tmp/zeroe
-		touch /tmp/zeroe/nullexcludes.zre
-		nostrikes="/tmp/zeroe/nullexcludes.zre"
-	elif [ -n "$x_opt" ]; then
-		if [[ "$x_opt" == "-"* ]]; then
-			echo -e "\e[31m [X] Error: File names starting with '-' may cause issues with commands \e[0m" >&2
-			exit 1
-		elif [[ "$x_opt" == *" "* ]]; then
-			echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed in file names \e[0m" >&2
-			exit 1
-		elif [ ! -s "$x_opt" ] && [ "$x_opt_provided" = "y" ]; then #Check if the file is empty
-        	echo -e "\\e[31m [X] Error: $x_opt is empty \\e[0m" >&2
-			exit 1
-		fi
-		nostrikes="$x_opt"
-		checkfile="$nostrikes"
-		checkinvalidips #Check excludes file for invalid entries
-	else
-		echo "[?] Enter the excluded IP addresses file -- if none, press <enter>: "
-		while true; do
-			read -e -p " [>] " nostrikes
-			if [[ -z "$nostrikes" ]]; then
-				mkdir -p /tmp/zeroe
-				touch /tmp/zeroe/nullexcludes.zre
-				nostrikes="/tmp/zeroe/nullexcludes.zre"
-				break
-			elif [[ ! -f "$nostrikes" ]]; then
-				echo -e "\e[31m [X] Error: You must pass an existing file containing the list of IP addresses to exclude (e.g. exclude.txt) \e[0m" >&2
-			elif [ ! -s "$nostrikes" ]; then #Check if the file is empty
-        		echo -e "\\e[31m [X] Error: $nostrikes is empty \\e[0m" >&2
-			else
-				if [[ "$nostrikes" == "-"* ]]; then
-					echo -e "\e[31m [X] Error: File names starting with '-' may cause issues with commands \e[0m" >&2
-				elif [[ "$nostrikes" == *" "* ]]; then
-					echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed in file names \e[0m" >&2
-				else
-					checkfile="$nostrikes"
-					checkinvalidips #Check targets file for invalid entries
-					if [[ $allvalid = 1 ]]; then
-						x_opt="$nostrikes"
-						break
-					fi
-				fi
-			fi
-		done
-	fi
+function excludes { # Sets the excludes file
+    # Global paths for `nullexcludes.zre` (unchanged)
+    mkdir -p /var/lib/zeroe
+    touch /var/lib/zeroe/nullexcludes.zre
+    nullexcludes="/var/lib/zeroe/nullexcludes.zre"
 
-	if [[ $nostrikes != "/tmp/zeroe/nullexcludes.zre" ]]; then
-		x_opt="$(realpath $nostrikes)"
-		nostrikes="$(realpath $nostrikes)"
-		echo -ne "     Generating temporary list of single IP addresses for excludes..."
-		geniplist "$nostrikes" > /tmp/zeroe/excludes-single-ips.zre
-		echo -e "\r     Generating temporary list of single IP addresses for excludes... Done"
-		nostrikes="/tmp/zeroe/excludes-single-ips.zre"
-		x_opt="/tmp/zeroe/excludes-single-ips.zre"
-	fi
+    # Determine the exclude file location based on session
+    if [[ "$session_flag" = true && -n "$session" ]]; then
+        session_dir="/var/lib/zeroe/sessions/$session"
+        excludes_file="$session_dir/excludes-single-ips.zre"
+    else
+        excludes_file="/var/lib/zeroe/excludes-single-ips.zre"
+    fi
+
+    if [[ -z "$x_opt" && "$defaults" = true ]]; then
+        nostrikes="$nullexcludes"  # Default to global nullexcludes
+    elif [ -n "$x_opt" ]; then
+        if [[ "$x_opt" == "-"* ]]; then
+            echo -e "\e[31m [X] Error: File names starting with '-' may cause issues with commands \e[0m" >&2
+            exit 1
+        elif [[ "$x_opt" == *" "* ]]; then
+            echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed in file names \e[0m" >&2
+            exit 1
+        elif [ ! -s "$x_opt" ] && [ "$x_opt_provided" = "y" ]; then # Check if the file is empty
+            echo -e "\\e[31m [X] Error: $x_opt is empty \\e[0m" >&2
+            exit 1
+        fi
+        nostrikes="$x_opt"
+        checkfile="$nostrikes"
+        checkinvalidips # Check excludes file for invalid entries
+    else
+        echo "[?] Enter the excluded IP addresses file -- if none, press <enter>: "
+        while true; do
+            read -e -p " [>] " nostrikes
+            if [[ -z "$nostrikes" ]]; then
+                nostrikes="$nullexcludes"
+                break
+            elif [[ ! -f "$nostrikes" ]]; then
+                echo -e "\e[31m [X] Error: You must pass an existing file containing the list of IP addresses to exclude (e.g. exclude.txt) \e[0m" >&2
+            elif [ ! -s "$nostrikes" ]; then # Check if the file is empty
+                echo -e "\\e[31m [X] Error: $nostrikes is empty \\e[0m" >&2
+            else
+                if [[ "$nostrikes" == "-"* ]]; then
+                    echo -e "\e[31m [X] Error: File names starting with '-' may cause issues with commands \e[0m" >&2
+                elif [[ "$nostrikes" == *" "* ]]; then
+                    echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed in file names \e[0m" >&2
+                else
+                    checkfile="$nostrikes"
+                    checkinvalidips # Check targets file for invalid entries
+                    if [[ $allvalid = 1 ]]; then
+                        x_opt="$nostrikes"
+                        break
+                    fi
+                fi
+            fi
+        done
+    fi
+
+    if [[ "$nostrikes" != "$nullexcludes" ]]; then
+        x_opt="$(realpath "$nostrikes")"
+        nostrikes="$(realpath "$nostrikes")"
+        echo -ne "     Generating temporary list of single IP addresses for excludes..."
+        geniplist "$nostrikes" > "$excludes_file"
+        echo -e "\r     Generating temporary list of single IP addresses for excludes... Done"
+        nostrikes="$excludes_file"
+        x_opt="$excludes_file"
+    fi
 }
 
 function enableudp { #Enables UDP scans
@@ -406,11 +422,11 @@ function checkinvalidips { #Checks targets file for invalid entries
 	fi
 }
 
-function stageinit { #The checkpoint system
-	mkdir -p /tmp/zeroe
+function stageinit { # The checkpoint system
+	mkdir -p /var/lib/zeroe
 
-	function checkinvalidstage { #Defines the function to check for invalid stage
-		if [[ "$stage" = "script-start" || "$stage" = "discovery-ports" || "$stage" = "discovery-alives" || "$stage" = "discovery-udp" || "$stage" = "discovery-lists" || "$stage" = "services-tcp" || "$stage" = "services-udp" ]]; then
+	function checkinvalidstage { # Defines the function to check for an invalid stage
+		if [[ "$stage" = "script-start" || "$stage" = "discovery-ports" || "$stage" = "discovery-alives" || "$stage" = "discovery-udp" || "$stage" = "discovery-lists" || "$stage" = "services-tcp" || "$stage" = "services-udp" || "$stage" = "methodology" ]]; then
 			return 0
 		else	
 			echo -e "\e[31m [X] Error: Invalid stage '$stage' -- check help or README for valid stages \e[0m" >&2
@@ -418,32 +434,35 @@ function stageinit { #The checkpoint system
 		fi
 	}
 
-	if [[ "$s_opt" = false && "$S_opt" = "disabled" && "$defaults" = true ]]; then #If only using --defaults option
-		#echo "script-start" > /tmp/zeroe/stage.zre
+	# Determine the appropriate stage file location
+	if [[ "$session_flag" = true && -n "$session" ]]; then
+		stage_file="/var/lib/zeroe/sessions/$session/stage.zre"
+		initdir_file="/var/lib/zeroe/sessions/$session/initdir.zre"
+	else
+		stage_file="/var/lib/zeroe/stage.zre"
+		initdir_file="/var/lib/zeroe/initdir.zre"
+	fi
+
+	if [[ "$s_opt" = false && "$S_opt" = "disabled" && "$defaults" = true ]]; then # If only using --defaults option
 		stage="script-start"
-		echo "$(pwd)" > /tmp/zeroe/initdir.zre
+		echo "$(pwd)" > "$initdir_file"
 		stage_cont=true
 		only_flag=false
-	elif [[ "$s_opt" = true ]]; then #If stage disabled
-		#echo "script-start" > /tmp/zeroe/stage.zre
+	elif [[ "$s_opt" = true ]]; then # If stage disabled
 		stage="script-start"
-		echo "$(pwd)" > /tmp/zeroe/initdir.zre
+		echo "$(pwd)" > "$initdir_file"
 		stage_cont=true
-		#only_flag=false
-	elif [[ ! -f "/tmp/zeroe/stage.zre" && "$S_opt" = "disabled" ]] || [[ -f "/tmp/zeroe/stage.zre" && "$(cat /tmp/zeroe/stage.zre)" = "script-start" ]]; then #If the stage file does not exist and stage option is disabled OR stage file exists and saved stage is script-start
+	elif [[ ! -f "$stage_file" && "$S_opt" = "disabled" ]] || [[ -f "$stage_file" && "$(cat "$stage_file")" = "script-start" ]]; then # If stage file does not exist and stage option is disabled OR saved stage is script-start
 		echo "[?] Start a new scan <y>, or start from a specific stage? -- see README or --help for stage options"
 		while true; do
 			read -e -p " [>] " stage
 			if [[ "$stage" = "y" ]]; then
-				#echo "script-start" > /tmp/zeroe/stage.zre
 				stage="script-start"
-				echo "$(pwd)" > /tmp/zeroe/initdir.zre
+				echo "$(pwd)" > "$initdir_file"
 				stage_cont=true
-				#only_flag=false
 				break
 			else
-				#echo "$stage" > /tmp/zeroe/stage.zre
-				echo "$(pwd)" > /tmp/zeroe/initdir.zre
+				echo "$(pwd)" > "$initdir_file"
 				if checkinvalidstage; then
 					if [[ "$only_flag" = false ]]; then
 						stage_cont=true
@@ -452,24 +471,21 @@ function stageinit { #The checkpoint system
 				fi
 			fi
 		done
-	elif [ -f "/tmp/zeroe/stage.zre" ] && [[ -z "$S_opt" ]]; then #Load stage if it exists and resume stage option is enabled
-	  	stage=$(cat /tmp/zeroe/stage.zre)
+	elif [[ -f "$stage_file" ]] && [[ -z "$S_opt" ]]; then # Load stage if it exists and resume stage option is enabled
+	  	stage=$(cat "$stage_file")
 		resume="y"
-	elif [[ ! -f "/tmp/zeroe/stage.zre" ]] && [[ -z "$S_opt" ]]; then #If the stage file does not exist and resume stage option is enabled
+	elif [[ ! -f "$stage_file" ]] && [[ -z "$S_opt" ]]; then # If stage file does not exist and resume option is enabled
 		echo -e "\e[31m [X] Error: No saved stage exists \e[0m" >&2
 		echo "[?] Start a new scan <y>, or start from a specific stage? -- see README or --help for stage options"
 		while true; do
 			read -e -p " [>] " stage
 				if [[ "$stage" = "y" ]]; then
-					#echo "script-start" > /tmp/zeroe/stage.zre
 					stage="script-start"
-					echo "$(pwd)" > /tmp/zeroe/initdir.zre
+					echo "$(pwd)" > "$initdir_file"
 					stage_cont=true
-					#only_flag=false
 					break
 				else
-					#echo "$stage" > /tmp/zeroe/stage.zre
-					echo "$(pwd)" > /tmp/zeroe/initdir.zre
+					echo "$(pwd)" > "$initdir_file"
 					if checkinvalidstage; then
 						if [[ "$only_flag" != true ]]; then
 							stage_cont=true
@@ -478,27 +494,24 @@ function stageinit { #The checkpoint system
 					fi
 				fi
 		done
-	elif [ -f "/tmp/zeroe/stage.zre" ] && [[ "$S_opt" = "disabled" ]] && [[ "$(cat /tmp/zeroe/stage.zre)" != "script-start" ]] && [[ -f "/tmp/zeroe/stage.zre" ]]; then #If the stage file exists and the stage option is disabled and saved stage is not script-start
-		echo "[?] Resume from '$(cat /tmp/zeroe/stage.zre)' <y/n>, or start from a specific stage? -- see README or --help for stage options"
+	elif [[ -f "$stage_file" && "$S_opt" = "disabled" && "$(cat "$stage_file")" != "script-start" ]]; then # If stage file exists, stage option is disabled, and saved stage is not script-start
+		echo "[?] Resume from '$(cat "$stage_file")' <y/n>, or start from a specific stage? -- see README or --help for stage options"
 		while true; do
 			read -e -p " [>] " stage
-			if [[ "$stage" != "script-start" && "$stage" != "discovery-ports" && "$stage" != "discovery-alives" && "$stage" != "discovery-udp" && "$stage" != "discovery-lists" && "$stage" != "services-tcp" && "$stage" != "services-udp" && "$stage" != "y" && "$stage" != "n" ]]; then #  && "$stage" != "methodology"
+			if [[ "$stage" != "script-start" && "$stage" != "discovery-ports" && "$stage" != "discovery-alives" && "$stage" != "discovery-udp" && "$stage" != "discovery-lists" && "$stage" != "services-tcp" && "$stage" != "services-udp"  && "$stage" != "methodology" && "$stage" != "y" && "$stage" != "n" ]]; then
 				echo -e "\e[31m [X] Error: Invalid stage '$stage' -- check help or README for valid stages \e[0m" >&2
 			elif [[ "$stage" = "n" ]]; then
 				stage="script-start"
-				#echo "script-start" > /tmp/zeroe/stage.zre
-				echo "$(pwd)" > /tmp/zeroe/initdir.zre
+				echo "$(pwd)" > "$initdir_file"
 				stage_cont=true
 				break
 			elif [[ "$stage" = "y" ]]; then
 				resume="y"
-				stage=$(cat /tmp/zeroe/stage.zre)
-				#echo "$stage" > /tmp/zeroe/stage.zre
+				stage=$(cat "$stage_file")
 				break
-			else #Specifying a stage
-				#echo "$stage" > /tmp/zeroe/stage.zre
+			else # Specifying a stage
 				if checkinvalidstage; then
-					echo "$(pwd)" > /tmp/zeroe/initdir.zre
+					echo "$(pwd)" > "$initdir_file"
 					if [[ "$only_flag" == true && "$stage" == "discovery-udp" ]]; then
 						stage_cont=false
 					elif [[ "$only_flag" != true ]]; then
@@ -508,11 +521,10 @@ function stageinit { #The checkpoint system
 				fi
 			fi
 		done
-	elif [ -n "$S_opt" ]; then #Start at the specified stage
-		if [[ "$S_opt" = "script-start" || "$S_opt" = "discovery-ports" || "$S_opt" = "discovery-alives" || "$S_opt" = "discovery-udp" || "$S_opt" = "discovery-lists" || "$S_opt" = "services-tcp" || "$S_opt" = "services-udp" ]]; then #  || "$S_opt" = "methodology"
+	elif [[ -n "$S_opt" ]]; then # Start at the specified stage
+		if [[ "$S_opt" = "script-start" || "$S_opt" = "discovery-ports" || "$S_opt" = "discovery-alives" || "$S_opt" = "discovery-udp" || "$S_opt" = "discovery-lists" || "$S_opt" = "services-tcp" || "$S_opt" = "services-udp"  || "$S_opt" = "methodology" ]]; then
 			stage="$S_opt"
-			#echo "$stage" > /tmp/zeroe/stage.zre
-			echo "$(pwd)" > /tmp/zeroe/initdir.zre
+			echo "$(pwd)" > "$initdir_file"
 			if [[ "$only_flag" == true && "$S_opt" == "discovery-udp" ]]; then
 				stage_cont=false
 			elif [[ "$only_flag" != true ]]; then
@@ -622,10 +634,10 @@ function stagefilescheck { #Checks if required files are present for the specifi
         #for file in "${missing_files[@]}"; do
         #    echo -e "  - $file"
         #done
-		if [[ -f /tmp/zeroe/stage.zre ]]; then
+		if [[ -f /var/lib/zeroe/stage.zre ]]; then
         	echo -e "\e[31m [X] Error: Required ZrE files for $stage stage do not exist" >&2
 			#echo -e " 		     Required files: ${missing_files[@]}" >&2
-			echo -e "            Resume ZrE from the saved $(cat /tmp/zeroe/stage.zre) stage, run preceding stage, or restart ZrE \e[0m" >&2
+			echo -e "            Resume ZrE from the saved $(cat /var/lib/zeroe/stage.zre) stage, run preceding stage, or restart ZrE \e[0m" >&2
         	exit 1
 		else
 			echo -e "\e[31m [X] Error: Required ZrE files for $stage stage do not exist" >&2
@@ -654,7 +666,7 @@ function genwindowshostlist {
 
     # Check if inputfile is provided and exists
     if [[ -z "$inputfile" ]]; then
-        echo -e "\e[31m [X] Error: Invalid syntax -- Usage: --listwinhosts <StandardNmapFile> [OutputFile]" >&2
+        echo -e "\e[31m [X] Error: Correct syntax: --listwinhosts <StandardNmapFile> [OutputFile]" >&2
         return 1
 	elif [[ ! -f "$inputfile" ]]; then
 		echo -e "\e[31m [X] Error: File '$inputfile' does not exist \e[0m" >&2
@@ -735,161 +747,106 @@ function genwindowshostlist_inscript { #For genwinhostlist when ran inside the s
     fi
 }
 
-function parsegrepnmap {
+function parsegnmap {
     local gnmapfile="$1"
     local portsofinterest="$2"
     local outputfilename="$3"
 
     # Error handling
     if [[ -z "$gnmapfile" || -z "$portsofinterest" ]]; then
-        echo -e "\e[31m [X] Error: Invalid syntax -- Usage: --parseports <GrepableNmapFile> <Comma,Separated,Ports> [OutputFileName] \e[0m" >&2
+        echo -e "\e[31m [X] Error: Correct syntax: --parseports <GrepableNmapFile> <Comma,Separated,Ports> [OutputFileName] \e[0m" >&2
         return 1
     elif [[ ! -f "$gnmapfile" ]]; then
         echo -e "\e[31m [X] Error: File '$gnmapfile' does not exist \e[0m" >&2
         return 1
     fi
 
-    if [[ -z "$outputfilename" ]]; then # First Scenario: Output to terminal
-        echo 'To parse the output for a specific port or service and output the results in ip:port/service format, save the results to a file and use the following command, changing the value of <PORT/SERVICE> and <resultsFilename>:'
+    # Parsing function for AWK
+    parse_with_awk() {
+    	grep '^Host:' "$gnmapfile" | \
+    	sed -n 's/^Host: \([^ ]*\).*Ports: \(.*\)/\1\t\2/p' | \
+    	awk -F'\t' -v ports="$portsofinterest" '
+    	BEGIN {
+    	    IGNORECASE = 1
+    	    split(ports, portlist, ",")
+    	    for (i in portlist) portmap[portlist[i]] = 1
+    	}
+    	{
+    	    ip = $1
+    	    ports_field = $2
+
+    	    ports_list = ""
+    	    services_list = ""
+
+    	    n = split(ports_field, port_entries, ", ")
+    	    for (j = 1; j <= n; j++) {
+    	        port_entry = port_entries[j]
+    	        split(port_entry, port_parts, "/")
+    	        portnum = port_parts[1]
+    	        state = port_parts[2]
+    	        service = port_parts[5]
+    	        if (state == "open" && portmap[portnum]) {
+    	            if (ports_list == "") {
+    	                ports_list = portnum
+    	                services_list = service
+    	            } else {
+    	                ports_list = ports_list "," portnum
+    	                services_list = services_list "," service
+    	            }
+    	        }
+    	    }
+    	    if (ports_list != "") {
+    	        # Print data with fixed-width columns for alignment
+    	        printf "%-15s %-25s %-30s\n", ip, ports_list, services_list
+    	    }
+    	}'
+	}
+
+	if [[ "$parsegnmap_inscript" == true ]]; then
+	    # Automated process: Output only to file, no terminal output
+	    temp_data_output=$(mktemp)
+
+	    # Parse the gnmap file and store data in temporary file
+	    parse_with_awk > "$temp_data_output"
+
+	    # Check if the temporary data output file is empty
+	    if [[ -s "$temp_data_output" ]]; then
+	        # There is data, write instructions, header, and data to the output file
+	        {
+	            # Print the header first
+	            echo 'To parse the contents for a specific port or service and output the results in IP Address:Port/Service format, use the following command (replace <PORT/SERVICE> with your value):'
+	            echo ''
+	            echo "awk -F' ' -v t=\"PORT/SERVICE\" 'BEGIN{IGNORECASE=1} \$2\",\"\$3 ~ \"(^|,)\" t \"(,|$)\" {print \$1\":\"t}'" "$outputfilename"
+	            echo ''
+	            # Append the parsed data
+	            cat "$temp_data_output"
+	        } > "$outputfilename"
+	    else
+	        # No data, remove the output file if it exists
+	        rm -f "$outputfilename"
+	    fi
+
+	    # Clean up the temporary file
+	    rm -f "$temp_data_output"
+    elif [[ -z "$outputfilename" ]]; then
+        # If no output filename is given, output to the terminal with instructions
+        echo 'To parse the output for a specific port or service and output the results in IP Address:Port/Service format, use the following command (replace <PORT/SERVICE> with your value):'
         echo ''
-		echo 'awk -F'\'' '\'' -v t="PORT/SERVICE" '\''BEGIN{IGNORECASE=1} $2","$3 ~ "(^|,)" t "(,|$)" {print $1":"t}'\'' resultsFilename'
+        echo 'awk -F'\'' '\'' -v t="PORT/SERVICE" '\''BEGIN{IGNORECASE=1} $2","$3 ~ "(^|,)" t "(,|$)" {print $1":"t}'\'' resultsFilename'
         echo ''
-        # Output the data to the terminal
-        grep '^Host:' "$gnmapfile" | \
-        sed -n 's/^Host: \([^ ]*\).*Ports: \(.*\)/\1\t\2/p' | \
-        awk -F'\t' -v ports="$portsofinterest" '
-		BEGIN {
-		    IGNORECASE = 1
-		    split(ports, portlist, ",")
-		    for (i in portlist) portmap[portlist[i]] = 1
-		}
-		{
-		    ip = $1
-		    ports_field = $2
+        parse_with_awk
+    elif [[ -n "$outputfilename" ]]; then
+        # Output instructions to the terminal and data to the file
+        {
+            echo 'To parse the output file for a specific port or service and output the results in IP Address:Port/Service format, use the following command (replace <PORT/SERVICE> with your value):'
+            echo ''
+            echo 'awk -F'\'' '\'' -v t="PORT/SERVICE" '\''BEGIN{IGNORECASE=1} $2","$3 ~ "(^|,)" t "(,|$)" {print $1":"t}'\'' '"$outputfilename"
+            echo ''
+        } 
 
-		    ports_list = ""
-		    services_list = ""
-
-		    n = split(ports_field, port_entries, ", ")
-		    for (j = 1; j <= n; j++) {
-		        port_entry = port_entries[j]
-		        split(port_entry, port_parts, "/")
-		        portnum = port_parts[1]
-		        state = port_parts[2]
-		        service = port_parts[5]
-		        if (state == "open" && portmap[portnum]) {
-		            if (ports_list == "") {
-		                ports_list = portnum
-		                services_list = service
-		            } else {
-		                ports_list = ports_list "," portnum
-		                services_list = services_list "," service
-		            }
-		        }
-		    }
-		    if (ports_list != "") {
-		        print ip "    " ports_list "    " services_list
-		    }
-		}'
-	elif [[ "$parsegrepnmap_inscript" == true ]]; then # Second Scenario: Output to file (instructions and data)
-		# Create a temporary file for data output
-		temp_data_output=$(mktemp)
-		# Parsing the gnmap file and outputting data to the temporary file
-		grep '^Host:' "$gnmapfile" | \
-		sed -n 's/^Host: \([^ ]*\).*Ports: \(.*\)/\1\t\2/p' | \
-		awk -F'\t' -v ports="$portsofinterest" '
-		BEGIN {
-		    IGNORECASE = 1
-		    split(ports, portlist, ",")
-		    for (i in portlist) portmap[portlist[i]] = 1
-		}
-		{
-		    ip = $1
-		    ports_field = $2
-
-		    ports_list = ""
-		    services_list = ""
-
-		    n = split(ports_field, port_entries, ", ")
-		    for (j = 1; j <= n; j++) {
-		        port_entry = port_entries[j]
-		        split(port_entry, port_parts, "/")
-		        portnum = port_parts[1]
-		        state = port_parts[2]
-		        service = port_parts[5]
-		        if (state == "open" && portmap[portnum]) {
-		            if (ports_list == "") {
-		                ports_list = portnum
-		                services_list = service
-		            } else {
-		                ports_list = ports_list "," portnum
-		                services_list = services_list "," service
-		            }
-		        }
-		    }
-		    if (ports_list != "") {
-		        print ip "    " ports_list "    " services_list
-		    }
-		}' > "$temp_data_output"
-
-		        # Check if the temporary data output file is empty
-		        if [[ -s "$temp_data_output" ]]; then
-		            # There is data, write instructions and data to the output file
-		            {
-		                echo 'To parse the contents for a specific port or service and output the results in ip:port/service format, use the following command, changing the value of <PORT/SERVICE>:'
-		                echo ''
-						echo 'awk -F'\'' '\'' -v t="PORT/SERVICE" '\''BEGIN{IGNORECASE=1} $2","$3 ~ "(^|,)" t "(,|$)" {print $1":"t}'\'' '"$outputfilename"
-		                echo ''
-		                cat "$temp_data_output"
-		            } > "$outputfilename"
-		        else
-		            # No data, remove the output file if it exists
-		            rm -f "$outputfilename"
-		        fi
-		        # Clean up the temporary file
-		        rm -f "$temp_data_output"
-	else # Third Scenario: Instructions to terminal, data to file
-		echo 'To parse the output file for a specific port or service and output the results in ip:port/service format, use the following command, changing the value of <PORT/SERVICE>:'
-		echo ''
-		echo 'awk -F'\'' '\'' -v t="PORT/SERVICE" '\''BEGIN{IGNORECASE=1} $2","$3 ~ "(^|,)" t "(,|$)" {print $1":"t}'\'' '"$outputfilename"
-		# Parsing the gnmap file and outputting data to the output file
-		grep '^Host:' "$gnmapfile" | \
-		sed -n 's/^Host: \([^ ]*\).*Ports: \(.*\)/\1\t\2/p' | \
-		awk -F'\t' -v ports="$portsofinterest" '
-		BEGIN {
-		    IGNORECASE = 1
-		    split(ports, portlist, ",")
-		    for (i in portlist) portmap[portlist[i]] = 1
-		}
-		{
-		    ip = $1
-		    ports_field = $2
-
-		    ports_list = ""
-		    services_list = ""
-
-		    n = split(ports_field, port_entries, ", ")
-		    for (j = 1; j <= n; j++) {
-		        port_entry = port_entries[j]
-		        split(port_entry, port_parts, "/")
-		        portnum = port_parts[1]
-		        state = port_parts[2]
-		        service = port_parts[5]
-		        if (state == "open" && portmap[portnum]) {
-		            if (ports_list == "") {
-		                ports_list = portnum
-		                services_list = service
-		            } else {
-		                ports_list = ports_list "," portnum
-		                services_list = services_list "," service
-		            }
-		        }
-		    }
-		    if (ports_list != "") {
-		        print ip "    " ports_list "    " services_list
-		    }
-		}' > "$outputfilename"
-	fi
+        # Append the parsed data to the output file
+        parse_with_awk > "$outputfilename"
+    fi
 }
 
 function listiptohostname { #Lists IP addresses and their corresponding hostnames
@@ -898,7 +855,7 @@ function listiptohostname { #Lists IP addresses and their corresponding hostname
 
     # Check if inputfile is provided and exists
     if [[ -z "$inputfile" ]]; then
-        echo -e "\e[31m [X] Error: Invalid syntax -- Usage: --listiphostname <StandardNmapFile> [OutputFile]" >&2
+        echo -e "\e[31m [X] Error: Correct syntax: --listiphostname <StandardNmapFile> [OutputFile]" >&2
         return 1
 	elif [[ ! -f "$inputfile" ]]; then
 		echo -e "\e[31m [X] Error: File '$inputfile' does not exist \e[0m" >&2
@@ -1057,10 +1014,6 @@ function errorcheck { #Checks for errors in command output
 	fi
 }
 
-function sedescape { #prevents special characters from being interpreted as sed metacharacters - used in methodology
-    			echo "$1" | sed -e 's/[]\/$*.^[]/\\&/g'
-}
-
 function whenstopped {
 	#Kill the periodic status process if it's running
     if [[ -n $status_pid ]] && kill -0 $status_pid >/dev/null 2>&1; then       
@@ -1070,7 +1023,9 @@ function whenstopped {
 	if [[ "$firewallset" = true ]]; then
 		removefirewallrule
 	fi
-	echo -e "\e[33m [!] Zero-E stopped -- saving progress... \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+	status_msg="[!] Zero-E stopped -- saving progress..."  
+	echo -e "\n\e[33m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+	ntfy "$status_msg"	
 	sleep 3
 	sed -i -e 's/\x1b\[[0-9;]*m//g' -e 's/\x1b\[A//g' -e 's/\x1b\[K//g' "$filepath/logs/$typevar-timestamps.log" #cleans up timestamps log
 	sed -i '/nocapture = servername/d' paused.conf 2>/dev/null #Removes line that breaks masscan --resume function
@@ -1081,9 +1036,18 @@ function whenstopped {
 }
 
 function zrecleanup {
-	sed -i 's/\x1b\[[0-9;]*m//g' $filepath/logs/$typevar-timestamps.log #cleans up timestamps log
-	rm -rd /tmp/zeroe 2>/dev/null
-	rm paused.conf 2>/dev/null
+    sed -i 's/\x1b\[[0-9;]*m//g' "$filepath/logs/$typevar-timestamps.log" # Cleans up timestamps log
+    
+    if [[ "$session_flag" = true && -n "$session" ]]; then
+        # Remove only session-specific files
+        rm -rf "/var/lib/zeroe/sessions/$session" 2>/dev/null
+    else
+        # No active session; remove only global files, keep session data
+        rm -rf /var/lib/zeroe/stage.zre /var/lib/zeroe/vars.zre /var/lib/zeroe/initdir.zre \
+               /var/lib/zeroe/excludes-single-ips.zre /var/lib/zeroe/targets-single-ips.zre 2>/dev/null
+    fi
+
+    rm paused.conf 2>/dev/null
 }
 
 function checktools {
@@ -1189,26 +1153,28 @@ function zrengineer { #Enables users to customize commands
 			fi
 		done
 
-		echo "[?] Provide custom options for the Nmap UDP discovery scan command:"
-		echo "    Leave blank to use the ZrE default"
-		echo "    Hardcoded: <-sU> <--open> <--excludefile (null if not specified)> <-iL> <-oG>"
-		while true; do
-			read -e -p " [>] " zreng_udpa_opts
-			if [[ -z "$zreng_udpa_opts" ]]; then #leave blank to use default
-				ngineer_udpa_default=true
-				break
-			elif [[ "$zreng_udpa_opts" =~ (-sV|--excludefile|-iL|>>|>|&|-o\*) ]] || [[ "$zreng_udpa_opts" == *"- "* ]] || { [[ "$zreng_udpa_opts" =~ (-)$ ]] && [[ ! "$zreng_udpa_opts" =~ "-p-" ]]; }; then
-				echo -e "\e[31m [X] Error: The command cannot contain [ -sV | --excludefile | -iL | >> | > | & | - | -o* ] -- this will likely cause errors \e[0m" >&2
-			elif [[ "$zreng_udpa_opts" == *"nmap"* ]]; then
-				echo -e "\e[31m [X] Error: Only provide the desired options \e[0m" >&2
-			elif [[ "$zreng_ports_opts" == *"masscan"* ]]; then
-				echo -e "\e[31m [X] Error: Currently, masscan cannot be used here \e[0m" >&2
-			elif ! [[ "$zreng_udpa_opts" =~ (-p[[:space:]]*([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])(-([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?|--top-ports[[:space:]]+([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))|-p- ]]; then
-				echo -e "\e[31m [X] Error: At minimum, you must specify ports with -p or --top-ports with proper syntax \e[0m" >&2
-			else
-				break
-			fi
-		done
+		if [[ "$U_opt" = true || "$udp" = "y" || "$udp" = "yes" ]]; then
+			echo "[?] Provide custom options for the Nmap UDP discovery scan command:"
+			echo "    Leave blank to use the ZrE default"
+			echo "    Hardcoded: <-sU> <--open> <--excludefile (null if not specified)> <-iL> <-oG>"
+			while true; do
+				read -e -p " [>] " zreng_udpa_opts
+				if [[ -z "$zreng_udpa_opts" ]]; then #leave blank to use default
+					ngineer_udpa_default=true
+					break
+				elif [[ "$zreng_udpa_opts" =~ (-sV|--excludefile|-iL|>>|>|&|-o\*) ]] || [[ "$zreng_udpa_opts" == *"- "* ]] || { [[ "$zreng_udpa_opts" =~ (-)$ ]] && [[ ! "$zreng_udpa_opts" =~ "-p-" ]]; }; then
+					echo -e "\e[31m [X] Error: The command cannot contain [ -sV | --excludefile | -iL | >> | > | & | - | -o* ] -- this will likely cause errors \e[0m" >&2
+				elif [[ "$zreng_udpa_opts" == *"nmap"* ]]; then
+					echo -e "\e[31m [X] Error: Only provide the desired options \e[0m" >&2
+				elif [[ "$zreng_ports_opts" == *"masscan"* ]]; then
+					echo -e "\e[31m [X] Error: Currently, masscan cannot be used here \e[0m" >&2
+				elif ! [[ "$zreng_udpa_opts" =~ (-p[[:space:]]*([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])(-([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?|--top-ports[[:space:]]+([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))|-p- ]]; then
+					echo -e "\e[31m [X] Error: At minimum, you must specify ports with -p or --top-ports with proper syntax \e[0m" >&2
+				else
+					break
+				fi
+			done
+		fi
 
 		echo "[?] Provide custom options for the Nmap TCP service scan command:"
 		echo "    Leave blank to use the ZrE default"
@@ -1231,26 +1197,29 @@ function zrengineer { #Enables users to customize commands
 			fi
 		done
 
-		echo "[?] Provide custom options for the Nmap UDP service scan command:"
-		echo "    Leave blank to use the ZrE default"
-		echo "    Hardcoded: <-sU> <-sV> <-Pn> <-p> <--excludefile (null if not specified)> <-iL> <-oA>"
-		while true; do
-			read -e -p " [>] " zreng_udps_opts
-			if [[ -z "$zreng_udps_opts" ]]; then #leave blank to use default
-				ngineer_udps_default=true
-				break
-			elif [[ "$zreng_udps_opts" =~ (--excludefile|-iL|>>|>|&|-o\*) ]] || [[ "$zreng_udps_opts" == *"- "* ]] || { [[ "$zreng_udps_opts" =~ (-)$ ]] && [[ ! "$zreng_udps_opts" =~ "-p-" ]]; }; then
-				echo -e "\e[31m [X] Error: The command cannot contain [ --excludefile | -iL | >> | > | & | - | -o* ] -- this will likely cause errors \e[0m" >&2
-			elif [[ "$zreng_udps_opts" == *"nmap"* ]]; then
-				echo -e "\e[31m [X] Error: Only provide the desired options \e[0m" >&2
-			elif [[ "$zreng_ports_opts" == *"masscan"* ]]; then
-				echo -e "\e[31m [X] Error: Currently, masscan cannot be used here \e[0m" >&2
-			elif [[ "$zreng_udps_opts" == *"-p"* ]] || [[ "$zreng_udps_opts" == *"--top-ports"* ]]; then
-				echo -e "\e[31m [X] Error: ZrE will provide only open ports to this scan \e[0m" >&2
-			else
-				break
-			fi
-		done
+		if [[ "$U_opt" = true || "$udp" = "y" || "$udp" = "yes" ]]; then
+			echo "[?] Provide custom options for the Nmap UDP service scan command:"
+			echo "    Leave blank to use the ZrE default"
+			echo "    Hardcoded: <-sU> <-sV> <-Pn> <-p> <--excludefile (null if not specified)> <-iL> <-oA>"
+			while true; do
+				read -e -p " [>] " zreng_udps_opts
+				if [[ -z "$zreng_udps_opts" ]]; then #leave blank to use default
+					ngineer_udps_default=true
+					break
+				elif [[ "$zreng_udps_opts" =~ (--excludefile|-iL|>>|>|&|-o\*) ]] || [[ "$zreng_udps_opts" == *"- "* ]] || { [[ "$zreng_udps_opts" =~ (-)$ ]] && [[ ! "$zreng_udps_opts" =~ "-p-" ]]; }; then
+					echo -e "\e[31m [X] Error: The command cannot contain [ --excludefile | -iL | >> | > | & | - | -o* ] -- this will likely cause errors \e[0m" >&2
+				elif [[ "$zreng_udps_opts" == *"nmap"* ]]; then
+					echo -e "\e[31m [X] Error: Only provide the desired options \e[0m" >&2
+				elif [[ "$zreng_ports_opts" == *"masscan"* ]]; then
+					echo -e "\e[31m [X] Error: Currently, masscan cannot be used here \e[0m" >&2
+				elif [[ "$zreng_udps_opts" == *"-p"* ]] || [[ "$zreng_udps_opts" == *"--top-ports"* ]]; then
+					echo -e "\e[31m [X] Error: ZrE will provide only open ports to this scan \e[0m" >&2
+				else
+					break
+				fi
+			done
+		fi
+
 	elif [[ "$i_opt" = true || "$type" = "I" || "$type" = "i" || "$type" = "internal" || "$type" = "Internal" || "$type" = "Int" || "$type" = "int" ]]; then
 		###Internal###
 		echo "[?] Provide custom options for the masscan open port discovery scan command:"
@@ -1274,26 +1243,28 @@ function zrengineer { #Enables users to customize commands
 			fi
 		done
 
-		echo "[?] Provide custom options for the Nmap UDP discovery scan command:"
-		echo "    Leave blank to use the ZrE default"
-		echo "    Hardcoded: <-sU> <--open> <--excludefile (null if not specified)> <-iL> <-oG>"
-		while true; do
-			read -e -p " [>] " zreng_udpa_opts
-			if [[ -z "$zreng_udpa_opts" ]]; then #leave blank to use default
-				ngineer_udpa_default=true
-				break
-			elif [[ "$zreng_udpa_opts" =~ (--excludefile|-iL|-sV|>>|>|&|-o\*) ]] || [[ "$zreng_udpa_opts" == *"- "* ]] || { [[ "$zreng_udpa_opts" =~ (-)$ ]] && [[ ! "$zreng_udpa_opts" =~ "-p-" ]]; }; then
-				echo -e "\e[31m [X] Error: The command cannot contain [ --excludefile | -iL | -sV | >> | > | & | - | -o* ] -- this will likely cause errors \e[0m" >&2
-			elif [[ "$zreng_udpa_opts" == *"nmap"* ]]; then
-				echo -e "\e[31m [X] Error: Only provide the desired options \e[0m" >&2
-			elif [[ "$zreng_ports_opts" == *"masscan"* ]]; then
-				echo -e "\e[31m [X] Error: Currently, masscan cannot be used here \e[0m" >&2
-			elif ! [[ "$zreng_udpa_opts" =~ (-p[[:space:]]*([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])(-([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?|--top-ports[[:space:]]+([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))|-p- ]]; then
-				echo -e "\e[31m [X] Error: At minimum, you must specify ports with -p or --top-ports with proper syntax \e[0m" >&2
-			else
-				break
-			fi
-		done
+		if [[ "$U_opt" = true || "$udp" = "y" || "$udp" = "yes" ]]; then
+			echo "[?] Provide custom options for the Nmap UDP discovery scan command:"
+			echo "    Leave blank to use the ZrE default"
+			echo "    Hardcoded: <-sU> <--open> <--excludefile (null if not specified)> <-iL> <-oG>"
+			while true; do
+				read -e -p " [>] " zreng_udpa_opts
+				if [[ -z "$zreng_udpa_opts" ]]; then #leave blank to use default
+					ngineer_udpa_default=true
+					break
+				elif [[ "$zreng_udpa_opts" =~ (--excludefile|-iL|-sV|>>|>|&|-o\*) ]] || [[ "$zreng_udpa_opts" == *"- "* ]] || { [[ "$zreng_udpa_opts" =~ (-)$ ]] && [[ ! "$zreng_udpa_opts" =~ "-p-" ]]; }; then
+					echo -e "\e[31m [X] Error: The command cannot contain [ --excludefile | -iL | -sV | >> | > | & | - | -o* ] -- this will likely cause errors \e[0m" >&2
+				elif [[ "$zreng_udpa_opts" == *"nmap"* ]]; then
+					echo -e "\e[31m [X] Error: Only provide the desired options \e[0m" >&2
+				elif [[ "$zreng_ports_opts" == *"masscan"* ]]; then
+					echo -e "\e[31m [X] Error: Currently, masscan cannot be used here \e[0m" >&2
+				elif ! [[ "$zreng_udpa_opts" =~ (-p[[:space:]]*([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])(-([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?|--top-ports[[:space:]]+([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))|-p- ]]; then
+					echo -e "\e[31m [X] Error: At minimum, you must specify ports with -p or --top-ports with proper syntax \e[0m" >&2
+				else
+					break
+				fi
+			done
+		fi
 
 		echo "[?] Provide custom options for the Nmap TCP service scan command:"
 		echo "    Leave blank to use the ZrE default"
@@ -1316,67 +1287,78 @@ function zrengineer { #Enables users to customize commands
 			fi
 		done
 
-		echo "[?] Provide custom options for the Nmap UDP service scan command:"
-		echo "    Leave blank to use the ZrE default"
-		echo "    Hardcoded: <-sU> <-sV> <-Pn> <-p> <--excludefile (null if not specified)> <-iL> <-oA>"
-		while true; do
-			read -e -p " [>] " zreng_udps_opts
-			if [[ -z "$zreng_udps_opts" ]]; then #leave blank to use default
-				ngineer_udps_default=true
-				break
-			elif [[ "$zreng_udps_opts" =~ (--excludefile|-iL|>>|>|&|-o\*) ]] || [[ "$zreng_udps_opts" == *"- "* ]] || { [[ "$zreng_udps_opts" =~ (-)$ ]] && [[ ! "$zreng_udps_opts" =~ "-p-" ]]; }; then
-				echo -e "\e[31m [X] Error: The command cannot contain [ --excludefile | -iL | >> | > | & | - | -o* ] -- this will likely cause errors \e[0m" >&2
-			elif [[ "$zreng_udps_opts" == *"nmap"* ]]; then
-				echo -e "\e[31m [X] Error: Only provide the desired options \e[0m" >&2
-			elif [[ "$zreng_ports_opts" == *"masscan"* ]]; then
-				echo -e "\e[31m [X] Error: Currently, masscan cannot be used here \e[0m" >&2
-			elif [[ "$zreng_udps_opts" == *"-p"* ]] || [[ "$zreng_udps_opts" == *"--top-ports"* ]]; then
-				echo -e "\e[31m [X] Error: ZrE will provide only open ports to this scan \e[0m" >&2
-			else
-				break
-			fi
-		done
-	
+		if [[ "$U_opt" = true || "$udp" = "y" || "$udp" = "yes" ]]; then
+			echo "[?] Provide custom options for the Nmap UDP service scan command:"
+			echo "    Leave blank to use the ZrE default"
+			echo "    Hardcoded: <-sU> <-sV> <-Pn> <-p> <--excludefile (null if not specified)> <-iL> <-oA>"
+			while true; do
+				read -e -p " [>] " zreng_udps_opts
+				if [[ -z "$zreng_udps_opts" ]]; then #leave blank to use default
+					ngineer_udps_default=true
+					break
+				elif [[ "$zreng_udps_opts" =~ (--excludefile|-iL|>>|>|&|-o\*) ]] || [[ "$zreng_udps_opts" == *"- "* ]] || { [[ "$zreng_udps_opts" =~ (-)$ ]] && [[ ! "$zreng_udps_opts" =~ "-p-" ]]; }; then
+					echo -e "\e[31m [X] Error: The command cannot contain [ --excludefile | -iL | >> | > | & | - | -o* ] -- this will likely cause errors \e[0m" >&2
+				elif [[ "$zreng_udps_opts" == *"nmap"* ]]; then
+					echo -e "\e[31m [X] Error: Only provide the desired options \e[0m" >&2
+				elif [[ "$zreng_ports_opts" == *"masscan"* ]]; then
+					echo -e "\e[31m [X] Error: Currently, masscan cannot be used here \e[0m" >&2
+				elif [[ "$zreng_udps_opts" == *"-p"* ]] || [[ "$zreng_udps_opts" == *"--top-ports"* ]]; then
+					echo -e "\e[31m [X] Error: ZrE will provide only open ports to this scan \e[0m" >&2
+				else
+					break
+				fi
+			done
+		fi
 	fi
 }
 
-function totaltargets { # Counts total number of hosts in a targets file
+function totaltargets {  # Counts total number of hosts in a targets file
 
-    # Function to convert dotted-decimal IP to integer
+    # Function to convert a dotted-decimal IP to an integer.
+    # Returns -1 if the IP is invalid.
     ip_to_int() {
         local ip="$1"
-        local o1 o2 o3 o4
-        IFS='.' read -r o1 o2 o3 o4 <<< "$ip"
-        for octet in "$o1" "$o2" "$o3" "$o4"; do
+        local IFS='.'
+        read -ra octets <<< "$ip"
+        # Ensure exactly 4 octets are provided.
+        if (( ${#octets[@]} != 4 )); then
+            echo "-1"
+            return 1
+        fi
+
+        local result=0
+        for octet in "${octets[@]}"; do
+            # Check that each octet is a number between 0 and 255.
             if ! [[ "$octet" =~ ^[0-9]+$ ]] || (( octet < 0 || octet > 255 )); then
-                echo "0"
-                return
+                echo "-1"
+                return 1
             fi
+            result=$(( (result << 8) + octet ))
         done
-        echo $(( (o1 << 24) + (o2 << 16) + (o3 << 8) + o4 ))
+        echo "$result"
     }
 
-    # Function to calculate number of hosts in a CIDR
+    # Function to calculate the number of hosts in a CIDR block.
+    # It subtracts the network and broadcast addresses for prefixes < 31.
     calculate_cidr_hosts() {
         local cidr="$1"
         local ip prefix
         IFS=/ read -r ip prefix <<< "$cidr"
 
-        # Validate CIDR prefix
+        # Validate CIDR prefix.
         if ! [[ "$prefix" =~ ^[0-9]+$ ]] || (( prefix < 0 || prefix > 32 )); then
             echo "0"
             return
         fi
 
-        # Calculate total number of addresses
-        local total_addresses=$((1 << (32 - prefix)))
-
-        # Subtract network and broadcast addresses if prefix allows
+        # Calculate the total number of addresses.
+        local total_addresses=$(( 1 << (32 - prefix) ))
+        # For subnets with more than 2 addresses, subtract network and broadcast.
         if (( prefix < 31 )); then
             total_addresses=$(( total_addresses - 2 ))
         fi
 
-        # Ensure non-negative number of hosts
+        # Ensure we don't get a negative number.
         if (( total_addresses < 0 )); then
             total_addresses=0
         fi
@@ -1384,7 +1366,7 @@ function totaltargets { # Counts total number of hosts in a targets file
         echo "$total_addresses"
     }
 
-    # Function to calculate number of hosts in an IP range
+    # Function to calculate the number of hosts in an IP range.
     calculate_ip_range_hosts() {
         local ip_range="$1"
         local IFS='-'
@@ -1392,140 +1374,158 @@ function totaltargets { # Counts total number of hosts in a targets file
 
         read -r start end <<< "$ip_range"
 
-        # Convert IPs to integers
+        # Convert both IP addresses to their integer representations.
         local start_long=$(ip_to_int "$start")
         local end_long=$(ip_to_int "$end")
 
-        # Validate IPs
-        if (( start_long == 0 || end_long == 0 || start_long > end_long )); then
+        # If either conversion failed (indicated by a negative value) or
+        # if the start IP is greater than the end IP, return 0.
+        if (( start_long < 0 || end_long < 0 || start_long > end_long )); then
             echo "0"
             return
         fi
 
-        # Calculate number of hosts
+        # Calculate the number of IP addresses in the range.
         local num_hosts=$(( end_long - start_long + 1 ))
         echo "$num_hosts"
     }
 
-    total_hosts=0  # 'total_hosts' is now a global variable
+    total_hosts=0  # Global variable to accumulate the total number of hosts.
     local line hosts
 
+    # Process the input file specified by the variable 'checkfile'.
     while IFS= read -r line || [[ -n "$line" ]]; do
-        # Remove comments and whitespace
+        # Remove comments and whitespace.
         line="${line%%#*}"
         line="${line//[[:space:]]/}"
-
-        # Skip empty lines
+        # Skip empty lines.
         if [[ -z "$line" ]]; then
             continue
         fi
 
         if [[ $line == *"/"* ]]; then
-            # CIDR notation
+            # CIDR notation.
             hosts=$(calculate_cidr_hosts "$line")
         elif [[ $line == *"-"* ]]; then
-            # IP range
+            # IP range.
             hosts=$(calculate_ip_range_hosts "$line")
         else
-            # Single IP
+            # Single IP.
             hosts=1
         fi
         total_hosts=$(( total_hosts + hosts ))
     done < "$checkfile"
 }
 
-ip_to_int() { # Function to convert dotted-decimal IP to integer
-    local ip="$1"
-    local o1 o2 o3 o4
-    # Extract octets
-    o1="${ip%%.*}"
-    ip="${ip#*.}"
-    o2="${ip%%.*}"
-    ip="${ip#*.}"
-    o3="${ip%%.*}"
-    o4="${ip#*.}"
-    # Convert to integers
-    echo $(( (o1 << 24) + (o2 << 16) + (o3 << 8) + o4 ))
-}
-int_to_ip() { # Function to convert integer IP to dotted-decimal format
-    local ip=$1
-    local octet1=$(( (ip >> 24) & 255 ))
-    local octet2=$(( (ip >> 16) & 255 ))
-    local octet3=$(( (ip >> 8) & 255 ))
-    local octet4=$(( ip & 255 ))
-    echo "$octet1.$octet2.$octet3.$octet4"
-}
-cidr_to_ip_range() { # Function to convert CIDR to IP range
-    local ip cidr netmask
-    IFS=/ read -r ip cidr <<< "$1"
-    local ip_int=$(ip_to_int "$ip")
-    netmask=$(( (0xFFFFFFFF << (32 - cidr)) & 0xFFFFFFFF ))
-    local network=$(( ip_int & netmask ))
-    local broadcast=$(( network | ((~netmask) & 0xFFFFFFFF) ))
-    echo "$(int_to_ip $network)-$(int_to_ip $broadcast)"
-}
-expand_ips() { # Function to expand IPs
-    local inputfile="$1"
-    while IFS= read -r ip || [[ -n "$ip" ]]; do
-        # Remove comments and whitespace
-        ip="${ip%%#*}"
-        ip="${ip//[[:space:]]/}"
-
-        # Skip empty lines
-        if [[ -z "$ip" ]]; then
-            continue
-        fi
-
-        if [[ $ip == *"/"* ]]; then
-            # Handle CIDR notation
-            range=$(cidr_to_ip_range "$ip")
-            IFS=- read -r start end <<< "$range"
-            start_int=$(ip_to_int "$start")
-            end_int=$(ip_to_int "$end")
-            # Exclude network and broadcast addresses for subnets larger than /31
-            IFS=/ read -r network prefix <<< "$ip"
-            if (( prefix < 31 )); then
-                start_int=$((start_int + 1))
-                end_int=$((end_int - 1))
-            fi
-            for ((i=start_int; i<=end_int; i++)); do
-                int_to_ip "$i"
-            done
-        elif [[ $ip == *"-"* ]]; then
-            # Handle IP range
-            IFS=- read -r start end <<< "$ip"
-            start_int=$(ip_to_int "$start")
-            end_int=$(ip_to_int "$end")
-            for ((i=start_int; i<=end_int; i++)); do
-                ip_addr=$(int_to_ip "$i")
-                echo "$ip_addr"
-            done
-        else
-            # Handle single IP address
-            echo "$ip"
-        fi
-    done < "$inputfile"
-}
-function geniplist { # Main function to generate IP list
+function geniplist { 
+	ip_to_int() { 
+	    # Function to convert dotted-decimal IP to integer
+	    local ip="$1"
+	    local o1 o2 o3 o4
+	    # Extract octets
+	    o1="${ip%%.*}"
+	    ip="${ip#*.}"
+	    o2="${ip%%.*}"
+	    ip="${ip#*.}"
+	    o3="${ip%%.*}"
+	    o4="${ip#*.}"
+	    # Convert to integers
+	    echo $(( (o1 << 24) + (o2 << 16) + (o3 << 8) + o4 ))
+	}
+	
+	int_to_ip() { 
+	    # Function to convert integer IP to dotted-decimal format
+	    local ip="$1"
+	    local octet1=$(( (ip >> 24) & 255 ))
+	    local octet2=$(( (ip >> 16) & 255 ))
+	    local octet3=$(( (ip >> 8) & 255 ))
+	    local octet4=$(( ip & 255 ))
+	    echo "$octet1.$octet2.$octet3.$octet4"
+	}
+	
+	cidr_to_ip_range() { 
+	    # Function to convert CIDR to IP range
+	    local cidr="$1"
+	    local ip cidr_val netmask ip_int network broadcast
+	    IFS=/ read -r ip cidr_val <<< "$cidr"
+	    ip_int=$(ip_to_int "$ip")
+	    netmask=$(( (0xFFFFFFFF << (32 - cidr_val)) & 0xFFFFFFFF ))
+	    network=$(( ip_int & netmask ))
+	    broadcast=$(( network | ((~netmask) & 0xFFFFFFFF) ))
+	    echo "$(int_to_ip "$network")-$(int_to_ip "$broadcast")"
+	}
+	
+	expand_ips() { 
+	    # Function to expand IPs from a file that can include single IPs, ranges, and CIDRs.
+	    local inputfile="$1"
+	    # Declare all variables local to this function.
+	    local ip range start end start_int end_int network prefix i ip_addr
+	
+	    while IFS= read -r ip || [[ -n "$ip" ]]; do
+	        # Remove comments and whitespace.
+	        ip="${ip%%#*}"
+	        ip="${ip//[[:space:]]/}"
+	
+	        # Skip empty lines.
+	        if [[ -z "$ip" ]]; then
+	            continue
+	        fi
+	
+	        if [[ "$ip" == *"/"* ]]; then
+	            # Handle CIDR notation.
+	            range=$(cidr_to_ip_range "$ip")
+	            IFS=- read -r start end <<< "$range"
+	            start_int=$(ip_to_int "$start")
+	            end_int=$(ip_to_int "$end")
+	            # Get the CIDR prefix to determine if network/broadcast addresses should be excluded.
+	            IFS=/ read -r network prefix <<< "$ip"
+	            if (( prefix < 31 )); then
+	                start_int=$(( start_int + 1 ))
+	                end_int=$(( end_int - 1 ))
+	            fi
+	            for (( i = start_int; i <= end_int; i++ )); do
+	                int_to_ip "$i"
+	            done
+	        elif [[ "$ip" == *"-"* ]]; then
+	            # Handle IP range.
+	            IFS=- read -r start end <<< "$ip"
+	            start_int=$(ip_to_int "$start")
+	            end_int=$(ip_to_int "$end")
+	            for (( i = start_int; i <= end_int; i++ )); do
+	                ip_addr=$(int_to_ip "$i")
+	                echo "$ip_addr"
+	            done
+	        else
+	            # Handle single IP address.
+	            echo "$ip"
+	        fi
+	    done < "$inputfile"
+	}
+	# Main function to generate a sorted, unique IP list.
     expand_ips "$checkfile" | sort -n -t . -k 1,1 -k 2,2 -k 3,3 -k 4,4 | uniq
 }
 
 function alivesandportscheck { #checks if alives and openPorts lists are populated
 	if grep -q "\S" "$filepath/$typevar-alives.txt" && grep -q "\S" "$filepath/$typevar-openPorts.txt"; then
-		echo -e "\e[32m [+] Discovery scans completed -- $(date) \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+		status_msg="[+] Discovery scans completed -- $(date)"
+		echo -e "\e[32m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		ntfy "$status_msg"
 	elif ! grep -q "\S" "$filepath/$typevar-alives.txt" && grep -q "\S" "$filepath/$typevar-openPorts.txt"; then
-		echo -e "\e[33m [!] No alive hosts detected -- if unexpected, check targets or inquire about scan defenses or other interference \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
-		echo -e "\e[33m [!] Exiting Zero-E... \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+		status_msg="[!] No alive hosts detected, check targets or inquire about scan defenses or other interference -- Exiting Zero-E..."
+		echo -e "\e[33m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		ntfy "$status_msg"
 		zrecleanup
 		exit 1
 	elif grep -q "\S" "$filepath/$typevar-alives.txt" && ! grep -q "\S" "$filepath/$typevar-openPorts.txt"; then
-		echo -e "\e[33m [!] No open ports detected -- if unexpected, check targets or inquire about scan defenses or other interference \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
-		echo -e "\e[33m [!] Exiting Zero-E... \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+		status_msg="[!] No open ports detected, check targets or inquire about scan defenses or other interference -- Exiting Zero-E..."
+		echo -e "\e[33m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		ntfy "$status_msg"
 		zrecleanup
 		exit 1
 	else
-		echo -e "\e[33m [!] No alive hosts or open ports detected -- if unexpected, check targets or inquire about scan defenses or other interference \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
-		echo -e "\e[33m [!] Exiting Zero-E... \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+		status_msg="[!] No alive hosts or open ports detected, check targets or inquire about scan defenses or other interference -- Exiting Zero-E..."
+		echo -e "\e[33m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		ntfy "$status_msg"
 		zrecleanup
 		exit 1
 	fi
@@ -1544,7 +1544,7 @@ function removefirewallrule { #removes the firewall rule used in int methodology
 	else #For Linux	
 		sudo iptables -D INPUT -p tcp --dport 55555 -j DROP 2>/dev/null
 	fi
-	echo -e "\e[33m [!] Firewall rule removed \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+	echo -e "\e[33m [!] Firewall rule removed \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 }
 
 function setfirewallrule { #sets the firewall rule used in int methodology
@@ -1556,19 +1556,194 @@ function setfirewallrule { #sets the firewall rule used in int methodology
 			pfctl -e >> $filepath/logs/mac-pfctl.log 2>&1 #enable pfctl
 		fi
 		if pfctl -sr 2>> $filepath/logs/mac-pfctl.log | grep -q "block drop in proto tcp from any to any port 55555"; then #check if rule exists
-    		echo -e "\e[33m [!] Firewall rule on port 55555 to prevent RST packets already exists -- skipping rule creation \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+    		echo -e "\e[33m [!] Firewall rule on port 55555 to prevent RST packets already exists -- skipping rule creation \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		else
 			cp "/etc/pf.conf" "$filepath/logs/pf.conf.bak-prescript"
     		echo "block drop in proto tcp from any to any port 55555" | sudo tee -a /etc/pf.conf >> $filepath/logs/mac-pfctl.log #creates the rule
     		sudo pfctl -f /etc/pf.conf >> $filepath/logs/mac-pfctl.log 2>&1 #loads the pfctl configuration
-			echo -e "\e[33m [!] Firewall rule created on port 55555 to prevent RST packet interference \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+			echo -e "\e[33m [!] Firewall rule created on port 55555 to prevent RST packet interference \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		fi
 	else #For Linux
 		if sudo iptables -C INPUT -p tcp --dport 55555 -j DROP 2> /dev/null; then
-			echo -e "\e[33m [!] Firewall rule on port 55555 to prevent RST packets already exists -- skipping rule creation \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+			echo -e "\e[33m [!] Firewall rule on port 55555 to prevent RST packets already exists -- skipping rule creation \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		else	
 			sudo iptables -A INPUT -p tcp --dport 55555 -j DROP
-			echo -e "\e[33m [!] Firewall rule created on port 55555 to prevent RST packet interference \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+			echo -e "\e[33m [!] Firewall rule created on port 55555 to prevent RST packet interference \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		fi
+	fi
+}
+
+function ntfy { # enables ntfy functionality
+    if [ "$ntfy_flag" = true ]; then
+        
+		if [ "$zre_started" != true ]; then 
+			# Remove any spaces from the provided value
+	        ntfy_arg=$(echo "$ntfy_arg" | tr -d '[:space:]')
+        	# Check if the value contains a comma
+        	if [[ "$ntfy_arg" == *,* ]]; then
+        	    ntfy_pri=$(echo "$ntfy_arg" | cut -d',' -f1)
+        	    ntfy_url=$(echo "$ntfy_arg" | cut -d',' -f2-)
+        	    # Validate that the priority is a number between 1 and 5
+        	    if ! [[ "$ntfy_pri" =~ ^[1-5]$ ]]; then
+        	        echo -e "\e[31m [X] Error: ntfy priority must be a number between 1 and 5 \e[0m" >&2
+        	        exit 1
+        	    fi
+        	else
+        	    # Default priority to 3 if not provided
+        	    ntfy_pri=3
+        	    ntfy_url="$ntfy_arg"
+        	fi
+        	# Validate that the URL starts with http:// or https://
+        	if ! [[ "$ntfy_url" =~ ^https?:// ]]; then
+        	    echo -e "\e[31m [X] Error: ntfy URL must start with http:// or https:// \e[0m" >&2
+        	    exit 1
+        	fi
+		fi
+
+        if [ "$zre_started" == true ]; then
+        	# Send the POST request to the ntfy server
+			local msg="$1"
+        	curl -H "X-Priority: $ntfy_lvl" -d "$msg" "$ntfy_url" >> "$filepath/logs/$typevar-ntfy.log" 2>&1
+		fi
+    fi
+}
+
+function logconfig { # Logs the configuration of the scan
+    local file="$1"
+    if [[ ! -f "$file" ]]; then
+        echo "Error: File '$file' not found." >&2
+        return 1
+    fi
+
+    # Read the entire file content into a variable.
+    local config_str
+    config_str=$(< "$file")
+
+    local udp_line=""
+    # Determine UDP configuration:
+    if grep -q 'U_opt="true"' "$file"; then
+        udp_line="udp=enabled"
+    elif grep -q 'u_opt="true"' "$file"; then
+        udp_line="udp=disabled"
+    fi
+
+    # Variables for specific keys in desired order.
+    local session_line=""
+    local output_dir=""
+    local targets_file=""
+    local total_targets=""
+    local excludes_file=""
+    local other_lines=()
+
+    # Add session name if session is active
+    if [[ "$session_flag" = true && -n "$session" ]]; then
+        session_line="sessionName=\"$session\""
+    fi
+
+    # Process each token (assumes tokens are whitespace-separated).
+    for token in $config_str; do
+        local key=${token%%=*}
+        local value=${token#*=}
+        # Remove surrounding quotes.
+        value=${value%\"}
+        value=${value#\"}
+
+        case "$key" in
+            # These keys are removed.
+            e_opt|i_opt|typevar|stage_cont|reportips|only_flag|U_opt|u_opt)
+                ;;
+            filepath)
+                output_dir="outputDirectory=\"$value\""
+                ;;
+            ips)
+                targets_file="targetsFile=\"$ips_log\""
+                ;;
+            total_hosts)
+                total_targets="totalTargets=\"$value\""
+                ;;
+            nostrikes)
+                if [ "$value" = "/var/lib/zeroe/nullexcludes.zre" ]; then
+                    excludes_file="excludesFile=\"none\""
+                else
+                    excludes_file="excludesFile=\"$value\""
+                fi
+                ;;
+            *)
+                other_lines+=("$key=\"$value\"")
+                ;;
+        esac
+    done
+
+    # Output in the specified order:
+    # 1. Session name (if active)
+    # 2. Output directory
+    # 3. Targets file
+    # 4. Total targets
+    # 5. Excludes file
+    # 6. Any other key-value pairs
+    # 7. UDP status (last)
+    if [ -n "$session_line" ]; then
+        echo "$session_line"
+    fi
+    if [ -n "$output_dir" ]; then
+        echo "$output_dir"
+    fi
+    if [ -n "$targets_file" ]; then
+        echo "$targets_file"
+    fi
+    if [ -n "$total_targets" ]; then
+        echo "$total_targets"
+    fi
+    if [ -n "$excludes_file" ]; then
+        echo "$excludes_file"
+    fi
+    for line in "${other_lines[@]}"; do
+        echo "$line"
+    done
+    if [ -n "$udp_line" ]; then
+        echo "$udp_line"
+    fi
+}
+
+function sessioninit { # Initializes sessions
+	if [ "$session_flag" = true ]; then
+		session_path="/var/lib/zeroe/sessions/$session"
+
+		if [[ -z "$S_opt" && -d "$session_path" ]]; then # If -S is provided and the session exists, skip prompts and just resume
+			echo "[#] Resuming session '$session'"
+			return
+		elif [ -d "$session_path" ]; then
+			echo -e "[?] Session '$session' already exists -- Overwrite? <y/n>: "
+			echo -e "    If trying to resume the session, exit and also provide the '-S' option" 
+			while true; do
+				read -e -p " [>] " response
+    			if [ "$response" == "y" ]; then
+    			    rm -rf "$session_path"
+    			    mkdir -p "$session_path"  # Ensure directory is recreated
+					echo "[#] Overwriting session '$session'"
+					break
+				elif [ "$response" == "n" ]; then
+					while true; do
+						echo -e "[?] Enter a new session name: "
+						read -e -p " [>] " session
+						session_path="/var/lib/zeroe/sessions/$session"
+						if [ -d "$session_path" ]; then
+							echo -e "\e[31m [X] Error: You opted to not overwrite, but Session '$session' already exists \e[0m" >&2
+						else
+							echo "[#] Creating new session '$session'"
+							mkdir -p "$session_path" 
+							break
+						fi
+					done
+					break
+    			else
+    			    echo "[#] Exiting Zero-E"
+					exit 1
+    			fi
+			done
+		else 
+			echo "[#] Creating new session '$session'"
+			mkdir -p "$session_path"  # Ensure session directory exists
 		fi
 	fi
 }
@@ -1576,7 +1751,7 @@ function setfirewallrule { #sets the firewall rule used in int methodology
 updatecheck
 
 #--Switches
-#pre-sudo options
+#auxiliary options
 help_flag=false
 version_flag=false
 geniplist_file=""
@@ -1587,6 +1762,8 @@ ngineer_mode=false
 listwinhosts_flag=false
 parseports_flag=false
 listiphostnames_flag=false
+session=""
+session_flag=false
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -1620,6 +1797,28 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             ;;
+		--ntfy)
+			shift # Remove --ntfy from processing
+			if [[ $# -gt 0 && ! $1 =~ ^- ]]; then
+				ntfy_flag=true
+				ntfy_arg="$1"
+				shift # Remove the ntfy argument from processing
+			else
+				echo -e "\e[31m [X] Error: --ntfy requires an argument of [an optional priority of 1-5,]<the server/topic url starting with http[s]://> \e[0m" >&2
+				exit 1
+			fi
+			;;
+		--session)
+			shift # Remove --session from processing
+			if [[ $# -gt 0 && ! $1 =~ ^- ]]; then
+				session="$1"
+				session_flag=true
+				shift # Remove the argument from processing
+			else
+				echo -e "\e[31m [X] Error: --session requires the name of a new or existing session \e[0m" >&2
+				exit 1
+			fi
+			;;
 		--defaults)
 			defaults=true
 			shift #Removes --defaults from processing
@@ -1656,45 +1855,68 @@ done
 if [ "$help_flag" = true ]; then
 	echo "$version -- https://github.com/Inscyght/Zero-E"
     echo ''
+	echo "Usage: sudo $(basename $0) [options]"
 	echo "While there are options, providing them is not necessary with Zero-E"
-	echo "ZrE will prompt you for required configuration settings"
+	echo "ZrE will prompt you for required configuration settings if not provided"
+	echo ''
 	echo "For advanced usage:"
-	echo -e "\nsudo $(basename $0) [-e || -i] [-o <output_directory>] [-t <targets_file>] [-x [excludes_file]] [-U || -u] [-S [stage] || -s] [--defaults] [--ngineer] [--only] [--count <filename>] [--geniplist <filename>] [--listwinhosts <StandardNmapFile> [OutputFile]] [--parseports <GrepableNmapFile> <Comma,Separated,Ports> [OutputFileName]] [--listiphostname <StandardNmapFile> [OutputFile]]"
-	echo "  -e: Run external assessment scans -- cannot be used with -i"
-    echo "  -i: Run internal assessment scans -- cannot be used with -e"
-    echo "  -o: Sets the output directory where generated files will save to"
-    echo "  -t: Sets the file containing the target IP addressses -- each single IP, range, or CIDR must be on a new line"
-	echo "  -x: Sets the file containing the IP addressses to exclude -- provide no argument to disable and not be prompted"
-    echo "  -U: Enables UDP scans -- cannot be used with -u"
-	echo "  -u: Disables UDP scans -- cannot be used with -U"
-	echo "  -S: With no arguments, resumes from saved stage -- cannot be used with -s"
-	echo "      Will skip to the specified stage, if provided -- valid stages are:"
-	echo "      	discovery-alives (TCP-only)"
-	echo "      	discovery-ports (TCP-only)"
-	echo "      	discovery-udp"
-	echo "      	discovery-lists"
-	echo "      	services-tcp"
-	echo "      	services-udp"
-	echo "  -s: Disables stage resuming and selection and starts at beginning of script -- cannot be used with -S"
-	echo "      Stages are still saved for resuming later as script runs"
-	echo "  --defaults: Runs ZrE using default settings -- using options with this will overwrite the default for that option"
-	echo "      Default settings are:"
-	echo "        Stage (-S/-s) -- starts at initial alives scan"
-	echo "        Targets file (-t) -- ./targets.txt"
-	echo "        Output directory (-o) -- ./zre-output"
-	echo "        Excluded targets (-x) -- none"
-	echo "        UDP scans (-U/-u) -- enabled"
-	echo "  --ngineer: Enables entry of custom command options"
-	echo "  --only: Only run UDP scans if enabled, and/or specified stage if provided -- does not apply to other options"
-	echo "  --count: Calculates and displays the total number of target IP addresses -- does not require sudo"
-	echo "  --geniplist: Generates a list of single IP addresses from the IP addresses, "
-	echo "               ranges, and CIDRs in the passed file  -- does not require sudo"
-    echo "  --listwinhosts: Parses a standard Nmap file (.nmap) and lists the "
-	echo "                  IP addresses of the Windows hosts -- does not require sudo"
-	echo "  --parseports: Parses a grep-able Nmap file (.gnmap) for hosts with the specified ports open "
-	echo "                and outputs results in a readable format -- does not require sudo"
-	echo "  --listiphostnames: Parses a standard Nmap file (.nmap) and lists "
-	echo "                     IP address and hostname pairs -- does not require sudo"
+	echo "sudo $(basename $0) [-e | -i] [-o <output_directory>] [-t <targets_file>] [-x [excludes_file]]"
+	echo "                     [-U | -u] [-S [stage] | -s]"
+	echo "                     [--defaults] [--ngineer] [--only]"
+	echo "                     [--count <filename>] [--geniplist <filename>]"
+	echo "                     [--listwinhosts <StandardNmapFile> [OutputFile]]"
+	echo "                     [--parseports <GrepableNmapFile> <Comma,Separated,Ports> [OutputFileName]]"
+	echo "                     [--listiphostname <StandardNmapFile> [OutputFile]]"
+	echo "                     [--ntfy [priority,]<server/topic_url>] [--session <session_name>]"
+	echo "                     [--help] [--version]"
+	echo ''	
+	echo "PRIMARY OPTIONS (ZrE will prompt for these if not provided):"
+	echo "  -e               Run external assessment scans (cannot be used with -i)"
+	echo "  -i               Run internal assessment scans (cannot be used with -e)"
+	echo "  -o <dir>         Set output directory for generated files"
+	echo "  -t <file>        Set file containing target IP addresses (one per line: single IP, range, or CIDR)"
+	echo "  -x [file]        Set file containing IP addresses to exclude (omit argument to disable exclusion prompt)"
+	echo "  -U               Enable UDP scans (cannot be used with -u)"
+	echo "  -u               Disable UDP scans (cannot be used with -U)"
+	echo "  -S [stage]       If no stage provided, resume from saved stage (cannot be used with -s)"
+	echo "                   If stage provided, skip to the specified stage"
+	echo "                   Available stages:"
+	echo "                     - discovery-alives (TCP-only)"
+	echo "                     - discovery-ports (TCP-only)"
+	echo "                     - discovery-udp"
+	echo "                     - discovery-lists"
+	echo "                     - services-tcp"
+	echo "                     - services-udp"
+	echo "  -s               Start from the beginning (disables stage resuming but still saves stages for later resumption)"
+	echo ''
+	echo "AUXILIARY OPTIONS (Enable additional functionality):"
+	echo "  --defaults       Run ZrE with default settings (overridden by explicitly provided options)"
+	echo "                   Default settings:"
+	echo "                     - Stage (-S/-s): Starts at initial alives scan"
+	echo "                     - Targets file (-t): ./targets.txt"
+	echo "                     - Output directory (-o): ./zre-output"
+	echo "                     - Excluded targets (-x): None"
+	echo "                     - UDP scans (-U/-u): Enabled"
+	echo "  --ngineer        Enable entry of custom command options"
+	echo "  --only           Run only UDP scans (if enabled) and/or specified stage (does not apply to other options)"
+	echo "  --count <file>   Count total target IP addresses (does not require sudo)"
+	echo "  --geniplist <file>"
+	echo "                   Generate a list of single IP addresses from IPs, ranges, and CIDRs in the provided file"
+	echo "                   (does not require sudo)"
+	echo "  --listwinhosts <NmapFile> [OutputFile]"
+	echo "                   Parse a standard Nmap file (.nmap) to list IP addresses of Windows hosts (does not require sudo)"
+	echo "  --parseports <GrepableNmapFile> <Comma,Separated,Ports> [OutputFileName]"
+	echo "                   Parse a grepable Nmap file (.gnmap) for hosts with specified open ports"
+	echo "                   and output results in a readable format (does not require sudo)"
+	echo "  --listiphostnames <NmapFile> [OutputFile]"
+	echo "                   Parse a standard Nmap file (.nmap) to list IP address and hostname pairs"
+	echo "                   (does not require sudo)"
+	echo "  --ntfy [priority,]<server/topic_url>"
+	echo "                   Enable ntfy notifications (priority 1-5 optional, followed by server/topic URL)"
+	echo "  --session <name> Enable session functionality (provide a new or existing session name)"
+	echo "                   To resume a session, provide the session name with the -S option"
+	echo "  --help           Display this help message"
+	echo "  --version        Display the version of Zero-E"
 	exit 0
 #Check for --version option (for troubleshooting purposes)
 elif [ "$version_flag" = true ]; then
@@ -1726,7 +1948,7 @@ elif [ "$listwinhosts_flag" = true ]; then
 	exit 0
 #Check for --parseports option
 elif [ "$parseports_flag" = true ]; then
-	parsegrepnmap "$1" "$2" "$3"
+	parsegnmap "$1" "$2" "$3"
 	exit 0
 elif [ "$listiphostnames_flag" = true ]; then
     listiptohostname "$1" "$2"
@@ -1740,11 +1962,17 @@ if [[ $EUID -ne 0 ]]; then # && [[ "$arg" != "--help" || "$arg" != "--version" |
 fi
 
 #Check if post-sudo required tools are installed
-mactools=("nmap" "masscan" "pfctl" "dos2unix" "realpath")
-linuxtools=("nmap" "masscan" "iptables" "dos2unix" "realpath")
-checktools
+if [ $ntfy_flag = true ]; then
+	mactools=("curl" "nmap" "masscan" "pfctl" "dos2unix" "realpath")
+	linuxtools=("curl" "nmap" "masscan" "iptables" "dos2unix" "realpath")
+	checktools
+else
+	mactools=("nmap" "masscan" "pfctl" "dos2unix" "realpath")
+	linuxtools=("nmap" "masscan" "iptables" "dos2unix" "realpath")
+	checktools
+fi
 
-#post-sudo options
+#primary options
 e_opt=false
 i_opt=false
 o_opt=""
@@ -1773,6 +2001,9 @@ while getopts ':eio:t:x:UusS:' opt "${remaining_args[@]}" 2>/dev/null; do
 			elif [[ "$OPTARG" == *" "* ]]; then
 				echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed in directory names \e[0m" >&2
 				exit 1
+			elif [[ "$OPTARG" == "/dev/null" ]]; then
+				echo -e "\e[31m [X] Error: /dev/null cannot be used as an output directory \e[0m" >&2
+        		exit 1
             else
 				o_opt="$OPTARG"
 			fi
@@ -1796,9 +2027,9 @@ while getopts ':eio:t:x:UusS:' opt "${remaining_args[@]}" 2>/dev/null; do
 		x)
 			if [[ "${OPTARG:0:1}" == '-' ]]; then #Enables -x to be run with or without an argument
                 OPTIND=$((OPTIND - 1))
-				mkdir -p /tmp/zeroe
-				touch /tmp/zeroe/nullexcludes.zre
-				x_opt="/tmp/zeroe/nullexcludes.zre"
+				mkdir -p /var/lib/zeroe
+				touch /var/lib/zeroe/nullexcludes.zre
+				x_opt="/var/lib/zeroe/nullexcludes.zre"
 			elif [[ "$OPTARG" == -* ]] || [[ ! -f "$OPTARG" ]]; then
 				echo -e "\e[31m [X] Error: -x requires an existing file containing the list of IP addresses to exclude (e.g. exclude.txt) \e[0m" >&2
                 exit 1
@@ -1825,20 +2056,20 @@ while getopts ':eio:t:x:UusS:' opt "${remaining_args[@]}" 2>/dev/null; do
 			s_opt=true
 			;;
 		S) 
-			if [[ "${OPTARG:0:1}" == '-' ]]; then #Enables -S to be run with or without an argument
-                OPTIND=$((OPTIND - 1))
-				S_opt=""
-			else
-				S_opt="$OPTARG"
-			fi
-			;;
+    		if [[ "${OPTARG:0:1}" == '-' ]]; then # Allows -S to be run with or without an argument
+    		    OPTIND=$((OPTIND - 1))
+    		    S_opt=""
+    		else
+    		    S_opt="$OPTARG"
+    		fi
+    		;;
 		:) #For when -S or -x is passed without an argument
             if [[ ${OPTARG} == "S" ]]; then
                 S_opt=""
 			elif [[ ${OPTARG} == "x" ]]; then
-				mkdir -p /tmp/zeroe
-				touch /tmp/zeroe/nullexcludes.zre
-				x_opt="/tmp/zeroe/nullexcludes.zre"
+				mkdir -p /var/lib/zeroe
+				touch /var/lib/zeroe/nullexcludes.zre
+				x_opt="/var/lib/zeroe/nullexcludes.zre"
 			fi
 			;;
     	\?)
@@ -1876,6 +2107,8 @@ if [ "$t_opt" = "$x_opt" ] && [ -n "$t_opt" ] && [ -n "$x_opt" ]; then
     echo -e "\e[31m [X] Error: You seem confused, script kiddie... targets and excludes cannot be the same file \e[0m" >&2
     exit 1
 fi
+#Validate ntfy argument
+ntfy
 
 #Banner
 echo "$version -- https://github.com/Inscyght/Zero-E"
@@ -1884,21 +2117,33 @@ echo "                        https://buymeacoffee.com/inscyght"
 echo ''
 
 #Set the stage to start at
+sessioninit
 stageinit
-if [ -f "/tmp/zeroe/stage.zre" ] && [ -f "/tmp/zeroe/vars.zre" ] && [[ "$resume" = "y" ]]; then #If successfully resuming saved stage...
-	if [[ "$(cat /tmp/zeroe/initdir.zre)" = "$(pwd)" ]]; then #check if the current and previous working dir are equal, then...
+# Determine file paths based on session
+if [[ "$session_flag" = true && -n "$session" ]]; then
+    stage_file="/var/lib/zeroe/sessions/$session/stage.zre"
+    vars_file="/var/lib/zeroe/sessions/$session/vars.zre"
+    initdir_file="/var/lib/zeroe/sessions/$session/initdir.zre"
+else
+    stage_file="/var/lib/zeroe/stage.zre"
+    vars_file="/var/lib/zeroe/vars.zre"
+    initdir_file="/var/lib/zeroe/initdir.zre"
+fi
+# Final checks and functions
+if [ -f "$stage_file" ] && [ -f "$vars_file" ] && [[ "$resume" = "y" ]]; then #If successfully resuming saved stage...
+	if [[ "$(cat "$initdir_file")" = "$(pwd)" ]]; then #check if the current and previous working dir are equal, then...
 		: #silently continue to...
 	else
-		cd $(cat /tmp/zeroe/initdir.zre) || exit #change dirs to the previous working dir (or exit if cannot) and...
+		cd "$(cat "$initdir_file")" || { echo -e "\e[31m [X] Error: Cannot change to previous working directory -- exiting Zero-E \e[0m" >&2; exit; } #change dirs to the previous working dir (or exit if cannot) and...
 	fi
 	#parse options to resume scans
 	while IFS='=' read -r key rest; do # The value is everything after the first '=', preserving internal quotes and spaces
     	value="${rest#\"}"      # Remove leading quote
     	value="${value%\"}"     # Remove trailing quote
     	eval "$key=\"$value\""  # Use eval to correctly handle complex values, ensuring to escape as needed
-	done < /tmp/zeroe/vars.zre
+	done < "$vars_file"
 else #Starting new scan or from specific stage
-	if [ ! -f "/tmp/zeroe/vars.zre" ] && [[ "$resume" = "y" ]]; then #If choosing resuming without saved options
+	if [ ! -f "$vars_file" ] && [[ "$resume" = "y" ]]; then #If choosing resuming without saved options
 		echo -e "\e[31m [X] Error: No saved options exist -- configure new scan \e[0m" >&2
 		S_opt='disabled'
 		resume=''
@@ -1963,10 +2208,12 @@ if [[ "$ngineer_mode" == true && "$resume" != "y" ]]; then
 fi
 #Save options to file for resuming stage
 if [[ "$resume" != "y" ]]; then
-	echo "e_opt=\"$e_opt\" i_opt=\"$i_opt\" filepath=\"$filepath\" ips=\"$ips\" nostrikes=\"$nostrikes\" U_opt=\"$U_opt\" u_opt=\"$u_opt\" total_hosts=\"$total_hosts\" typevar=\"$typevar\" only_flag=\"$only_flag\" stage_cont=\"$stage_cont\"" > /tmp/zeroe/vars.zre
-	echo "$stage" > /tmp/zeroe/stage.zre
+	echo "e_opt=\"$e_opt\" i_opt=\"$i_opt\" filepath=\"$filepath\" ips=\"$ips\" nostrikes=\"$nostrikes\" U_opt=\"$U_opt\" u_opt=\"$u_opt\" total_hosts=\"$total_hosts\" typevar=\"$typevar\" only_flag=\"$only_flag\" stage_cont=\"$stage_cont\"" | tee "$vars_file" > /dev/null
+	echo "$stage" > "$stage_file"
+	logconfig "$vars_file" > $filepath/logs/$typevar-config.txt
+	#Save ngineer options
 	if [[ "$ngineer_mode" == true ]]; then
-		echo "ngineer_mode=\"$ngineer_mode\" ngineer_ports_default=\"$ngineer_ports_default\" ngineer_udpa_default=\"$ngineer_udpa_default\" ngineer_tcps_default=\"$ngineer_tcps_default\" ngineer_udps_default=\"$ngineer_udps_default\" zreng_ports_opts=\"$zreng_ports_opts\" zreng_udpa_opts=\"$zreng_udpa_opts\" zreng_tcps_opts=\"$zreng_tcps_opts\" zreng_udps_opts=\"$zreng_udps_opts\"" >> /tmp/zeroe/vars.zre
+		echo "ngineer_mode=\"$ngineer_mode\" ngineer_ports_default=\"$ngineer_ports_default\" ngineer_udpa_default=\"$ngineer_udpa_default\" ngineer_tcps_default=\"$ngineer_tcps_default\" ngineer_udps_default=\"$ngineer_udps_default\" zreng_ports_opts=\"$zreng_ports_opts\" zreng_udpa_opts=\"$zreng_udpa_opts\" zreng_tcps_opts=\"$zreng_tcps_opts\" zreng_udps_opts=\"$zreng_udps_opts\"" >> "$vars_file"
 	fi
 fi
 
@@ -1975,14 +2222,17 @@ cd $filepath
 #Sets trap for when script stops before finishing
 trap whenstopped INT TERM
 
-echo -e "\e[35m \n [=] Zero-E started -- progress updates for scans displayed every 15 minutes \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
-
+#Start scans
+echo -e "\e[35m \n [=] Zero-E started -- progress updates for scans displayed every 15 minutes \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+zre_started=true
+#==================================
 #=============EXTERNAL=============
+#==================================
 if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = "external" ] || [ "$type" = "External" ] || [ "$type" = "Ext" ] || [ "$type" = "ext" ]; then
 
 	#Stage -- start
 	if { [[ "$stage" == "discovery-alives" ]] || [[ "$stage" == "script-start" ]]; } && ! { [[ "$udp" == "y" ]] && [[ "$only_flag" == true ]]; }; then
-		echo "discovery-alives" > /tmp/zeroe/stage.zre
+		echo "discovery-alives" > "$stage_file"
 		stage="discovery-alives"
 
 		if [[ "$stage" == "discovery-alives" ]] && [[ "$resume" = "y" ]]; then
@@ -1996,7 +2246,7 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 		echo -ne "\e[36m [-] Discovering alive hosts with Nmap... \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		echo ""
 		ntdscan="nmap -n -vv -sn -oG - --excludefile $nostrikes -iL $ips" #Stored as variable for report generation
-		echo "ntdscan=\"$ntdscan\"" >> /tmp/zeroe/vars.zre
+		echo "ntdscan=\"$ntdscan\"" >> "$vars_file"
 		if [[ "$resume" = "y" ]]; then
 			resume=''
 			nmap --resume "$filepath/logs/misc-files/$typevar-discoscan-nmap.gnmap" 1>>"$filepath/logs/misc-files/$typevar-discoscan-nmap.gnmap" 2>>"$filepath/logs/$typevar-errors.log" &
@@ -2023,20 +2273,26 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 		exitstatus=$?
 		errorcheck	
 
-		printf "\033[A\r\e[K\e[32m [+] Discovering alive hosts with Nmap... Done \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		status_msg="[+] Discovering alive hosts with Nmap... Done"
+		printf "\033[A\r\e[K\e[32m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		ntfy "$status_msg"
 		#Generate alives file
 		cat "$filepath/logs/misc-files/$typevar-discoscan-nmap.gnmap" | grep 'Up' | awk '{print $2}' | sort -u | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n > $filepath/$typevar-alives.txt
 		if [[ "$stage" == "discovery-alives" ]] && [[ "$only_flag" == true ]]; then	
 			if grep -q "\S" "$filepath/$typevar-alives.txt"; then
 				echo "" | tee -a "$filepath/logs/$typevar-timestamps.log"
-				echo -e "\e[32m [+] Alive hosts discovered -- "$(date)" \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+				status_msg="[+] Alive hosts discovered -- $(date)"
+				echo -e "\e[32m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+				ntfy "$status_msg"
 			else
-				echo -e "\e[33m [!] No alive hosts detected \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+				status_msg="[!] No alive hosts detected"
+				echo -e "\e[33m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+				ntfy "$status_msg"
 			fi
 		fi
 		#Stage update
 		if [[ "$only_flag" != true && "$stage_cont" == true ]]; then
-			echo "discovery-ports" > /tmp/zeroe/stage.zre
+			echo "discovery-ports" > "$stage_file"
 			stage="discovery-ports"
 		fi
 	fi
@@ -2047,7 +2303,7 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 		####################################################################
 		####### External masscan command if adjustment is necessary ########
 		emscan="sudo masscan --open-only -p 1-65535 --rate=5000 --excludefile $nostrikes --include-file $ips -oG $filepath/logs/misc-files/$typevar-discoscan-masscan-tcp.txt"
-		echo "emscan=\"$emscan\"" >> /tmp/zeroe/vars.zre
+		echo "emscan=\"$emscan\"" >> "$vars_file"
 		### Stored as variable to correctly reflect in report if changed ###
 		####################################################################
 		#^^^If scans are taking too long, remove -p 1-65535 and use --top-ports=32768
@@ -2087,7 +2343,9 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 		exitstatus=$?
 		errorcheck
 
-		printf "\033[A\r\e[K\e[32m [+] Discovering alive hosts and open TCP ports with Masscan... Done\e[0m\n" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		status_msg="[+] Discovering alive hosts and open TCP ports with Masscan... Done"
+		printf "\033[A\r\e[K\e[32m $status_msg \e[0m\n" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		ntfy "$status_msg"
 		#Filter out hosts with more than 100 ports open
 		susinput="$filepath/logs/misc-files/$typevar-discoscan-masscan-tcp.txt"
 		susips="$filepath/$typevar-100port-hosts-tcp.txt"
@@ -2113,10 +2371,10 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 
 		#Stage -- update
 		if [ "$udp" = "y" ] || [ "$udp" = "yes" ] || [ "$U_opt" = true ]; then
-			echo "discovery-udp" > /tmp/zeroe/stage.zre
+			echo "discovery-udp" > "$stage_file"
 			stage="discovery-udp"
 		elif [[ "$stage_cont" == true ]] || { [[ "$stage" == "discovery-ports" ]] && [[ "$only_flag" == true ]]; }; then
-			echo "discovery-lists" > /tmp/zeroe/stage.zre
+			echo "discovery-lists" > "$stage_file"
 			stage="discovery-lists"
 		fi
 
@@ -2157,7 +2415,9 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 		exitstatus=$?
 		errorcheck
 		
-		printf "\033[A\r\e[K\e[32m [+] Discovering alive hosts and open UDP ports with Nmap... Done\e[0m\n" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		status_msg="[+] Discovering alive hosts and open UDP ports with Nmap... Done"
+		printf "\033[A\r\e[K\e[32m $status_msg \e[0m\n" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		ntfy "$status_msg"
 		#Carve out UDP IP addresses and put them into a file
 		if [ -s "$filepath/$typevar-100port-hosts-tcp.txt" ]; then
 			awk 'NR==FNR{ips[$0];next} {for (ip in ips) if ($0 !~ ip) print}' $filepath/$typevar-100port-hosts-tcp.txt "$filepath/logs/misc-files/$typevar-discoscan-nmap-udp.gnmap" > $filepath/logs/misc-files/$typevar-discoscan-nmap-udp-nosusips.txt #Filter out hosts with more than 100 open tcp ports
@@ -2167,7 +2427,7 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 		fi
 		
 		#Stage -- update
-		echo "discovery-lists" > /tmp/zeroe/stage.zre
+		echo "discovery-lists" > "$stage_file"
 		stage="discovery-lists"
 	fi
 
@@ -2181,14 +2441,10 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 
 		#Generate list of all open ports
 		if ! { [[ "$udp" == "y" ]] && [[ "$only_flag" == true ]]; }; then
-			#echo '===========' > $filepath/$typevar-openPorts.txt
-			#echo '    TCP' >> $filepath/$typevar-openPorts.txt
-			#echo '===========' >> $filepath/$typevar-openPorts.txt
 			cat $filepath/logs/misc-files/$typevar-discoscan-masscan-tcp-nosusips.txt | grep 'open' | cut -d ' ' -f5 | cut -d '/' -f1 | sort -u >> $filepath/rangetemp.txt
 			#continue with ports list
 			rangeout="$filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt"
 			singleportstorange
-			sed -i '/^[ \t]*$/d' "$rangeout" #Removes blank lines and lines that only contain spaces
 			cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt > $filepath/$typevar-openPorts.txt
 			sed -i 's/^/TCP\//' $filepath/$typevar-openPorts.txt
 			#echo ' ' >> $filepath/$typevar-openPorts.txt
@@ -2196,12 +2452,7 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 		if [ "$udp" = "y" ] || [ "$udp" = "yes" ] || [ "$U_opt" = true ]; then
 			if [[ "$only_flag" == true ]]; then
 				rm $filepath/$typevar-openPorts.txt 2>/dev/null
-			#	echo '===========' > $filepath/$typevar-openPorts.txt
-			#else
-			#	echo '===========' >> $filepath/$typevar-openPorts.txt
 			fi
-			#echo '    UDP' >> $filepath/$typevar-openPorts.txt
-			#echo '===========' >> $filepath/$typevar-openPorts.txt
 			if [ -s "$filepath/$typevar-100port-hosts-tcp.txt" ]; then
 				cat $filepath/logs/misc-files/$typevar-discoscan-nmap-udp-nosusips.txt | grep '/open' | cut -d ' ' -f4 | cut -d '/' -f1 | sort -u >> $filepath/rangetempu.txt
 			else
@@ -2211,7 +2462,6 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 			rm $filepath/rangetempu.txt
 			rangeout="$filepath/logs/misc-files/$typevar-portsfornmap-udp.txt"
 			singleportstorange
-			sed -i '/^[ \t]*$/d' "$rangeout" #Removes blank lines and lines that only contain spaces
 			cat $filepath/logs/misc-files/$typevar-portsfornmap-udp.txt >> $filepath/$typevar-openPorts.txt
 			sed -i '/^TCP\//! s/^/UDP\//' $filepath/$typevar-openPorts.txt
 		fi
@@ -2230,10 +2480,10 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 	
 		#Stage -- update
 		if [[ "$only_flag" != true && "$stage_cont" == true ]]; then
-			echo "services-tcp" > /tmp/zeroe/stage.zre
+			echo "services-tcp" > "$stage_file"
 			stage="services-tcp"
 		elif { [[ "$udp" == "y" ]] && [[ "$only_flag" == true ]] && [[ "$stage_cont" == true ]]; }; then
-			echo "services-udp" > /tmp/zeroe/stage.zre
+			echo "services-udp" > "$stage_file"
 			stage="services-udp"
 		fi
 	
@@ -2242,10 +2492,8 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 	#Stage -- start
 	if [[ "$stage" == "services-tcp" ]]; then
 		##Nmap TCP service scans
-		#ntportsall="$(cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt | paste -sd "," -)"
-		#ntports3=$($(head -n 3 $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt | paste -sd "," -),[...])
-		ntscan="nmap -sC -sV -Pn -O -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt | paste -sd "," -) --open --reason --excludefile $nostrikes -iL $filepath/$typevar-alives.txt -oA $filepath/$typevar-tcp-servicescan-results"
-		echo "ntscan=\"$ntscan\"" >> /tmp/zeroe/vars.zre
+		entscan="nmap -sC -sV -Pn -O -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt | paste -sd "," -) --open --reason --excludefile $nostrikes -iL $filepath/$typevar-alives.txt -oA $filepath/$typevar-tcp-servicescan-results"
+		echo "entscan=\"$entscan\"" >> "$vars_file"
 		if grep -q "\S" "$filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt"; then
 			if [[ "$resume" = "y" ]]; then
 				resume=''
@@ -2255,13 +2503,13 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 			else
 				if [[ "$ngineer_mode" == true ]]; then
 					if [[ "$ngineer_tcps_default" == true ]]; then	
-						eval "$ntscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+						eval "$entscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 					else
 						echo -e "\e[33m [!] Using ZrE ngineer options for Nmap TCP service scan \e[0m"
-						eval "nmap $zreng_tcps_opts -sV -Pn -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt | paste -sd "," -) --reason -oA $filepath/$typevar-tcp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+						eval "nmap $zreng_tcps_opts -sV -Pn -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt | paste -sd "," -) -oA $filepath/$typevar-tcp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 					fi
 				else
-					eval "$ntscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+					eval "$entscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 				fi
 			fi
 			pid=$!
@@ -2271,47 +2519,48 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 			contstatus="Scanning TCP ports"
 			statusnmap
 			#Error check and alert
-			checked_cmd="$ntscan"
+			checked_cmd="$entscan"
 			wait $pid
 			exitstatus=$?
+			printf "\r%-${#indicator}s\r" "" #Clears status indicator line
 			if [ $exitstatus -eq 0 ]; then
-				printf "\r%-${#indicator}s\r" "" #Clears status indicator line
-				if [ "$udp" = "y" ] || [ "$udp" = "yes" ] || [ "$U_opt" = true  ]; then
-					echo -e "\e[32m [+] Nmap TCP service scan complete, results saved as ext-tcp-servicescan-results -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-					#echo -e "\e[33m [!] Start working with TCP scan results. UDP scans may take a while, depending on the amount of hosts and ports. \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-				else
-					echo -e "\e[32m [+] Nmap TCP service scan complete, results saved as ext-tcp-servicescan-results -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-				fi
+				status_msg="[+] Nmap TCP service scan complete, results saved as $typevar-tcp-servicescan-results -- $(date)"
+				echo -e "\e[32m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+				ntfy "$status_msg"
 			else
-				printf "\r%-${#indicator}s\r" "" #Clears status indicator line
 				errorcheck
+				if [ $ntfy_flag = true ]; then
+					ntfy "[!] Nmap TCP service scan failed -- Check errors.log"
+				fi
 			fi
 
 			genwindowshostlist_inscript
 			listiptohostname_inscript
-			parsegrepnmap_inscript=true
-			parsegrepnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 139,445,137,138 "$filepath/analysis/$typevar-smbHosts.txt"
-			parsegrepnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 80,443,8080,8443,8000,8008,8888 "$filepath/analysis/$typevar-httpHosts.txt"
-			parsegrepnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 22,23,3389,5985,5986,5900,5800,1494,5631,5632 "$filepath/analysis/$typevar-remoteAccessHosts.txt"
-			parsegrepnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 1723,1194 "$filepath/analysis/$typevar-vpnHosts.txt"
-			parsegrepnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 20,21,22,69,111,873,990,2049,3260 "$filepath/analysis/$typevar-fileshareHosts.txt"
-			parsegrepnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 3306,5432,1433,1521 "$filepath/analysis/$typevar-databaseHosts.txt"
-			parsegrepnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 25,465,587,143,993,110,995 "$filepath/analysis/$typevar-emailHosts.txt"
-			parsegrepnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 389,636 "$filepath/analysis/$typevar-ldapHosts.txt"
+			parsegnmap_inscript=true
+			parsegnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 139,445,137,138 "$filepath/analysis/$typevar-smbHosts.txt"
+			parsegnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 80,443,8080,8443,8000,8008,8888 "$filepath/analysis/$typevar-httpHosts.txt"
+			parsegnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 22,23,3389,5985,5986,5900,5800,1494,5631,5632 "$filepath/analysis/$typevar-remoteAccessHosts.txt"
+			parsegnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 1723,1194 "$filepath/analysis/$typevar-vpnHosts.txt"
+			parsegnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 20,21,22,69,111,873,990,2049,3260 "$filepath/analysis/$typevar-fileshareHosts.txt"
+			parsegnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 3306,5432,1433,1521 "$filepath/analysis/$typevar-databaseHosts.txt"
+			parsegnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 25,465,587,143,993,110,995 "$filepath/analysis/$typevar-emailHosts.txt"
+			parsegnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 389,636 "$filepath/analysis/$typevar-ldapHosts.txt"
 		else
-			echo -e "\e[33m [!] No open TCP ports detected -- TCP service scans skipped \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+			status_msg="[!] No open TCP ports detected -- TCP service scans skipped"
+			echo -e "\e[33m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+			ntfy "$status_msg"
 		fi
 	
 		#Stage -- update
 		if { [ "$udp" = "y" ] || [ "$udp" = "yes" ] || [ "$U_opt" = true ]; } && [[ "$stage_cont" == true ]]; then
-			echo "services-udp" > /tmp/zeroe/stage.zre
+			echo "services-udp" > "$stage_file"
 			stage="services-udp"
 		fi
 	
 	fi
 
 	#Stage -- start
-	if [[ "$stage" == "services-udp" ]] && [[ "$udp" = "y" || "$udp" = "yes"  || "$U_opt" = true ]]; then
+	if [[ "$stage" == "services-udp" ]] && [[ "$udp" = "y" || "$udp" = "yes" || "$U_opt" = true ]]; then
 		#Nmap UDP service scans
 		nsudp="nmap -v -sU -Pn -sV --open --min-rate 1000 --max-rate 3000 --reason -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-udp.txt | paste -sd "," -) -oA $filepath/$typevar-udp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 
 		if grep -q "\S" "$filepath/logs/misc-files/$typevar-portsfornmap-udp.txt"; then
@@ -2342,30 +2591,40 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 			checked_cmd="nmap -v -sU -Pn -sV --open --min-rate 1000 --max-rate 3000 --reason -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-udp.txt | paste -sd "," -) -oA $filepath/$typevar-udp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &"
 			wait $pid
 			exitstatus=$?
+			printf "\r%-${#indicator}s\r" "" #Clears status indicator line
 			if [ $exitstatus -eq 0 ]; then
-				printf "\r%-${#indicator}s\r" "" #Clears status indicator line
-				echo -e "\e[32m [+] Nmap UDP service scan complete, results saved as ext-udp-servicescan-results -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+				status_msg="[+] Nmap UDP service scan complete, results saved as $typevar-udp-servicescan-results -- $(date)"
+				echo -e "\e[32m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+				ntfy "$status_msg"
 			else
-				printf "\r%-${#indicator}s\r" "" #Clears status indicator line
 				errorcheck
+				if [ $ntfy_flag = true ]; then
+					ntfy "[!] Nmap UDP service scan failed -- Check errors.log"
+				fi
 			fi
 
 			genwindowshostlist_inscript
 			listiptohostname_inscript
 		else
-			echo -e "\e[33m [!] No open UDP ports detected -- UDP service scans skipped \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+			status_msg="[!] No open UDP ports detected -- UDP service scans skipped"
+			echo -e "\e[33m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+			ntfy "$status_msg"
 		fi
 	fi
 
-	echo -e "\e[35m [=] Zero-E completed -- happy hacking! \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+	status_msg="[=] Zero-E completed -- happy hacking!"
+	echo -e "\e[35m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+	ntfy "$status_msg"
 	zrecleanup
 fi
-###===========INTERNAL=============
+#================================
+#===========INTERNAL=============
+#================================
 if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = "internal" ] || [ "$type" = "Internal" ] || [ "$type" = "Int" ] || [ "$type" = "int" ]; then
 
 	#Stage -- start
 	if { [[ "$stage" == "discovery-alives" ]] || [[ "$stage" == "script-start" ]]; } && ! { [[ "$udp" == "y" ]] && [[ "$only_flag" == true ]]; }; then
-		echo "discovery-alives" > /tmp/zeroe/stage.zre
+		echo "discovery-alives" > "$stage_file"
 		stage="discovery-alives"
 
 		#cidrconvert >> $filepath/logs/$typevar-fpingcidrs.txt
@@ -2431,7 +2690,9 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 			errorcheck
 		fi 
 
-		printf "\033[A\r\e[K\e[32m [+] Discovering alive hosts with Masscan... Done\e[0m\n" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		status_msg="[+] Discovering alive hosts with Masscan... Done"
+		printf "\033[A\r\e[K\e[32m $status_msg \e[0m\n" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		ntfy "$status_msg"
 		#Filter out hosts with more than 100 ports open
 		susinput="$filepath/logs/misc-files/$typevar-masscanalives-results.txt"
 		susips="$filepath/$typevar-100port-hosts-tcp.txt"
@@ -2447,19 +2708,19 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 			if grep -q "\S" "$filepath/$typevar-alives.txt"; then
 				echo -e "\e[32m [+] Alive hosts discovered -- "$(date)" \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 			else
-				echo -e "\e[33m [!] No alive hosts detected -- if unexpected, check targets or inquire about scan defenses or other interference \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+				echo -e "\e[33m [!] No alive hosts detected -- if unexpected, check targets or inquire about scan defenses or other interference \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 				#Remove firewall rule
 				removefirewallrule
-				echo -e "\e[33m [!] Exiting Zero-E... \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+				echo -e "\e[33m [!] Exiting Zero-E... \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 				zrecleanup
 				exit 1
 			fi
 		else
 			if ! grep -q "\S" "$filepath/logs/misc-files/$typevar-discoresults.txt" 2>/dev/null; then
-				echo -e "\e[33m [!] No alive hosts detected -- if unexpected, check targets or inquire about scan defenses or other interference \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+				echo -e "\e[33m [!] No alive hosts detected -- if unexpected, check targets or inquire about scan defenses or other interference \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 				#Remove firewall rule
 				removefirewallrule
-				echo -e "\e[33m [!] Exiting Zero-E... \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+				echo -e "\e[33m [!] Exiting Zero-E... \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 				zrecleanup
 				exit 1
 			fi
@@ -2467,7 +2728,7 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 
 		#Stage -- update
 		if [[ "$only_flag" != true && "$stage_cont" == true ]]; then
-			echo "discovery-ports" > /tmp/zeroe/stage.zre
+			echo "discovery-ports" > "$stage_file"
 			stage="discovery-ports"
 		fi
 
@@ -2476,12 +2737,14 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 	#Stage -- start
 	if [[ "$stage" == "discovery-ports" ]] && ! { [[ "$udp" == "y" ]] && [[ "$only_flag" == true ]]; }; then
 		
-		setfirewallrule
+		if [ $firewallset != true ]; then
+			setfirewallrule
+		fi
 		#Masscan open port discovery
 		####################################################################
 		####### Internal masscan command if adjustment is necessary ########
-		imscan="sudo masscan --open-only -p 1-65535 --rate=8000 --src-port=55555 --excludefile $nostrikes --include-file "$filepath/$typevar-alives.txt" -oG $filepath/logs/misc-files/$typevar-discoscan-masscan-tcp.txt"
-		echo "imscan=\"$imscan\"" >> /tmp/zeroe/vars.zre
+		imscan="sudo masscan --open-only -p 1-65535 --rate=8000 --src-port=55555 --excludefile $nostrikes --include-file "$filepath/$typevar-alives.txt" -oG "$filepath/logs/misc-files/$typevar-discoscan-masscan-tcp.txt""
+		echo "imscan=\"$imscan\"" >> "$vars_file"
 		### Stored as variable to correctly reflect in report if changed ###
 		####################################################################
 		#^^^If scans are taking too long, remove -p 1-65535 and use --top-ports=32768
@@ -2529,7 +2792,9 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 		exitstatus=$?
 		errorcheck
 
-		printf "\033[A\r\e[K\e[32m [+] Discovering open TCP ports with Masscan... Done\e[0m\n" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		status_msg="[+] Discovering open TCP ports with Masscan... Done"
+		printf "\033[A\r\e[K\e[32m $status_msg \e[0m\n" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		ntfy "$status_msg"
 		#Filter out hosts with more than 100 ports open
 		susinput="$filepath/logs/misc-files/$typevar-discoscan-masscan-tcp.txt"
 		susips="$filepath/$typevar-100port-hosts-tcp.txt"
@@ -2546,10 +2811,10 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 
 		#Stage -- update
 		if [ "$udp" = "y" ] || [ "$udp" = "yes" ] || [ "$U_opt" = true ]; then
-			echo "discovery-udp" > /tmp/zeroe/stage.zre
+			echo "discovery-udp" > "$stage_file"
 			stage="discovery-udp"
 		elif [[ "$stage_cont" == true ]] || { [[ "$stage" == "discovery-ports" ]] && [[ "$only_flag" == true ]]; }; then
-			echo "discovery-lists" > /tmp/zeroe/stage.zre
+			echo "discovery-lists" > "$stage_file"
 			stage="discovery-lists"
 		fi
 
@@ -2604,7 +2869,9 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 		exitstatus=$?
 		errorcheck
 
-		printf "\033[A\r\e[K\e[32m [+] Discovering alive hosts and open UDP ports with Nmap... Done\e[0m\n" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		status_msg="[+] Discovering alive hosts and open UDP ports with Nmap... Done"
+		printf "\033[A\r\e[K\e[32m $status_msg \e[0m\n" | tee -a "$filepath/logs/$typevar-timestamps.log"
+		ntfy "$status_msg"
 		#Carve out UDP IP addresses and put them into a file
 		if [ -s "$filepath/$typevar-100port-hosts-tcp.txt" ]; then
 			awk 'NR==FNR{ips[$0];next} {for (ip in ips) if ($0 !~ ip) print}' $filepath/$typevar-100port-hosts-tcp.txt $filepath/logs/misc-files/$typevar-discoscan-nmap-udp.gnmap > $filepath/logs/misc-files/$typevar-discoscan-nmap-udp-nosusips.txt #Filter out hosts with more than 100 open tcp ports
@@ -2614,7 +2881,7 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 		fi
 
 		#Stage -- update
-		echo "discovery-lists" > /tmp/zeroe/stage.zre
+		echo "discovery-lists" > "$stage_file"
 		stage="discovery-lists"
 	fi
 
@@ -2633,13 +2900,9 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 
 		#Generate list of all open ports
 		if ! { [[ "$udp" == "y" ]] && [[ "$only_flag" == true ]]; }; then
-			#echo '===========' > $filepath/$typevar-openPorts.txt
-			#echo '    TCP' >> $filepath/$typevar-openPorts.txt
-			#echo '===========' >> $filepath/$typevar-openPorts.txt
 			cat $filepath/logs/misc-files/$typevar-discoscan-masscan-tcp-nosusips.txt | grep 'open' | cut -d ' ' -f5 | cut -d '/' -f1 | sort -u >> $filepath/rangetemp.txt
 			rangeout="$filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt"
 			singleportstorange
-			sed -i '/^[ \t]*$/d' "$rangeout" #Removes blank lines and lines that only contain spaces
 			cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt > $filepath/$typevar-openPorts.txt
 			sed -i 's/^/TCP\//' $filepath/$typevar-openPorts.txt
 			#echo '' >> $filepath/$typevar-openPorts.txt
@@ -2647,12 +2910,7 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 		if [ "$udp" = "y" ] || [ "$udp" = "yes" ] || [ "$U_opt" = true ]; then
 			if [[ "$only_flag" == true ]]; then
 				rm $filepath/$typevar-openPorts.txt 2>/dev/null
-			#	echo '===========' > $filepath/$typevar-openPorts.txt
-			#else
-			#	echo '===========' >> $filepath/$typevar-openPorts.txt
 			fi
-			#echo '    UDP' >> $filepath/$typevar-openPorts.txt
-			#echo '===========' >> $filepath/$typevar-openPorts.txt
 			if [ -s "$filepath/$typevar-100port-hosts-tcp.txt" ]; then
 				cat $filepath/logs/misc-files/$typevar-discoscan-nmap-udp-nosusips.txt | grep '/open' | cut -d ' ' -f4 | cut -d '/' -f1 | sort -u >> $filepath/rangetemp.txt
 			else
@@ -2660,17 +2918,10 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 			fi
 			rangeout="$filepath/logs/misc-files/$typevar-portsfornmap-udp.txt"
 			singleportstorange
-			sed -i '/^[ \t]*$/d' "$rangeout" #Removes blank lines and lines that only contain spaces
 			cat $filepath/logs/misc-files/$typevar-portsfornmap-udp.txt >> $filepath/$typevar-openPorts.txt
 			sed -i '/^TCP\//! s/^/UDP\//' $filepath/$typevar-openPorts.txt
 		fi
 		nessusports 2>/dev/null
-		# Verify that the open ports file is not empty
-		#if [[ ! -s "$filepath/$typevar-openPorts.txt" ]]; then
-		#    echo -e "\e[33m [!] No open ports detected on discovered hosts -- exiting Zero-E... \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-		#    zrecleanup
-		#	exit 1
-		#fi
 
 		#Status update
 		alivesandportscheck
@@ -2685,10 +2936,10 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 	
 		#Stage -- update
 		if [[ "$only_flag" != true && "$stage_cont" == true ]]; then
-			echo "services-tcp" > /tmp/zeroe/stage.zre
+			echo "services-tcp" > "$stage_file"
 			stage="services-tcp"
 		elif { [[ "$udp" == "y" ]] && [[ "$only_flag" == true ]] && [[ "$stage_cont" == true ]]; }; then
-			echo "services-udp" > /tmp/zeroe/stage.zre
+			echo "services-udp" > "$stage_file"
 			stage="services-udp"
 		fi
 	
@@ -2697,8 +2948,8 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 	#Stage -- start
 	if [[ "$stage" == "services-tcp" ]]; then
 		#Nmap TCP service scans
-		ntscan="nmap -sC -sV -Pn -O -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt | paste -sd "," -) --open --reason -oA $filepath/$typevar-tcp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt"
-		echo "ntscan=\"$ntscan\"" >> /tmp/zeroe/vars.zre
+		intscan="nmap -sC -sV -Pn -O -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt | paste -sd "," -) --open --reason -oA $filepath/$typevar-tcp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt"
+		echo "intscan=\"$intscan\"" >> "$vars_file"
 		if grep -q "\S" "$filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt"; then
 			if [[ "$resume" = "y" ]]; then
 				resume=''
@@ -2708,13 +2959,13 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 			else
 				if [[ "$ngineer_mode" == true ]]; then
 					if [[ "$ngineer_tcps_default" == true ]]; then	
-						eval "$ntscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+						eval "$intscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 					else
 						echo -e "\e[33m [!] Using ZrE ngineer options for Nmap TCP service scan \e[0m"
 						eval "nmap $zreng_tcps_opts -sV -Pn -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt | paste -sd "," -) -oA $filepath/$typevar-tcp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 					fi
 				else
-					eval "$ntscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+					eval "$intscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 				fi
 			fi
 			pid=$!
@@ -2724,40 +2975,41 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 			contstatus="Scanning TCP ports"
 			statusnmap
 			#Error check and alert
-			checked_cmd="$ntscan"
+			checked_cmd="$intscan"
 			wait $pid
 			exitstatus=$?
+			printf "\r%-${#indicator}s\r" "" #Clears status indicator line
 			if [ $exitstatus -eq 0 ]; then
-				printf "\r%-${#indicator}s\r" "" #Clears status indicator line
-				if [ "$udp" = "y" ] || [ "$udp" = "yes" ] || [ "$U_opt" = true ]; then
-					echo -e "\e[32m [+] Nmap TCP service scan complete, results saved as $typevar-tcp-servicescan-results -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-					#echo -e "\e[33m [!] Start working with TCP scan results. UDP scans may take a while, depending on the amount of hosts and ports. \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-				else
-					echo -e "\e[32m [+] Nmap TCP service scan complete, results saved as $typevar-tcp-servicescan-results -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-				fi
+				status_msg="[+] Nmap TCP service scan complete, results saved as $typevar-tcp-servicescan-results -- $(date)"
+				echo -e "\e[32m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+				ntfy "$status_msg"
 			else
-				printf "\r%-${#indicator}s\r" "" #Clears status indicator line
 				errorcheck
+				if [ $ntfy_flag = true ]; then
+					ntfy "[!] Nmap TCP service scan failed -- Check errors.log"
+				fi
 			fi
 
 			genwindowshostlist_inscript
 			listiptohostname_inscript
-			parsegrepnmap_inscript=true
-			parsegrepnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 139,445,137,138 "$filepath/analysis/$typevar-smbHosts.txt"
-			parsegrepnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 80,443,8080,8443,8000,8008,8888 "$filepath/analysis/$typevar-httpHosts.txt"
-			parsegrepnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 22,23,3389,5985,5986,5900,5800,1494,5631,5632 "$filepath/analysis/$typevar-remoteAccessHosts.txt"
-			parsegrepnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 1723,1194 "$filepath/analysis/$typevar-vpnHosts.txt"
-			parsegrepnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 20,21,22,69,111,873,990,2049,3260 "$filepath/analysis/$typevar-fileshareHosts.txt"
-			parsegrepnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 3306,5432,1433,1521 "$filepath/analysis/$typevar-databaseHosts.txt"
-			parsegrepnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 25,465,587,143,993,110,995 "$filepath/analysis/$typevar-emailHosts.txt"
-			parsegrepnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 389,636 "$filepath/analysis/$typevar-ldapHosts.txt"
+			parsegnmap_inscript=true
+			parsegnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 139,445,137,138 "$filepath/analysis/$typevar-smbHosts.txt"
+			parsegnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 80,443,8080,8443,8000,8008,8888 "$filepath/analysis/$typevar-httpHosts.txt"
+			parsegnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 22,23,3389,5985,5986,5900,5800,1494,5631,5632 "$filepath/analysis/$typevar-remoteAccessHosts.txt"
+			parsegnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 1723,1194 "$filepath/analysis/$typevar-vpnHosts.txt"
+			parsegnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 20,21,22,69,111,873,990,2049,3260 "$filepath/analysis/$typevar-fileshareHosts.txt"
+			parsegnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 3306,5432,1433,1521 "$filepath/analysis/$typevar-databaseHosts.txt"
+			parsegnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 25,465,587,143,993,110,995 "$filepath/analysis/$typevar-emailHosts.txt"
+			parsegnmap "$filepath/$typevar-tcp-servicescan-results.gnmap" 389,636 "$filepath/analysis/$typevar-ldapHosts.txt"
 		else
-			echo -e "\e[33m [!] No open TCP ports detected -- TCP service scans skipped \e[0m" | tee -a $filepath/logs/$typevar-timestamps.log
+			status_msg="[!] No open TCP ports detected -- TCP service scans skipped"
+			echo -e "\e[33m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+			ntfy "$status_msg"
 		fi
 
 		#Stage -- update
 		if { [ "$udp" = "y" ] || [ "$udp" = "yes" ] || [ "$U_opt" = true ]; } && [[ "$stage_cont" == true ]]; then
-			echo "services-udp" > /tmp/zeroe/stage.zre
+			echo "services-udp" > "$stage_file"
 			stage="services-udp"
 		fi
 	
@@ -2795,29 +3047,33 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 			checked_cmd="nmap -v -sU -Pn -sV --open --min-rate 1000 --max-rate 3000 --reason -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-udp.txt | paste -sd "," -) -oA $filepath/$typevar-udp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt"
 			wait $pid
 			exitstatus=$?
+			printf "\r%-${#indicator}s\r" "" #Clears status indicator line
 			if [ $exitstatus -eq 0 ]; then
-				printf "\r%-${#indicator}s\r" "" #Clears status indicator line
-				echo -e "\e[32m [+] Nmap UDP service scan complete, results saved as $typevar-udp-servicescan-results -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+				status_msg="[+] Nmap UDP service scan complete, results saved as $typevar-udp-servicescan-results -- $(date)"
+				echo -e "\e[32m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+				ntfy "$status_msg"
 			else
-				printf "\r%-${#indicator}s\r" "" #Clears status indicator line
 				errorcheck
+				if [ $ntfy_flag = true ]; then
+					ntfy "[!] Nmap UDP service scan failed -- Check errors.log"
+				fi
 			fi
 
 			genwindowshostlist_inscript
 			listiptohostname_inscript
 		else
-			echo -e "\e[33m [!] No open UDP ports detected -- UDP service scans skipped \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+			status_msg="[!] No open UDP ports detected -- UDP service scans skipped"
+			echo -e "\e[33m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+			ntfy "$status_msg"
 		fi
 	fi
-
-	#Stage -- start
-	#if [[ "$stage" == "methodology" ]] && ! { [[ "$udp" == "y" ]] && [[ "$only_flag" == true ]]; }; then		
-	#fi #Stage end
 
 	#fi
 	if [[ "$firewallset" = true ]]; then
 		removefirewallrule
 	fi
-	echo -e "\e[35m [=] Zero-E completed -- happy hacking! \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+	status_msg="[=] Zero-E completed -- happy hacking!"
+	echo -e "\e[35m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
+	ntfy "$status_msg"
 	zrecleanup
 fi

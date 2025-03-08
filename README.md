@@ -3,34 +3,38 @@
 </p>
 
 # Description
-Host discovery and service enumeration are part of every network pentest and routine check. It's relatively straightforward, and we could all probably do it in our sleep (you will be with this tool), but doing it thoroughly is still tedious and wastes valuable time. Zero-E (ZrE) aims to automate the entire process in a fire-and-forget manner, from initial open port and live host discovery scans to in-depth scanning of only active hosts and open ports, to free up our attention to work on other things and save valuable time. It uses a thoughtful, extensively-tested methodology that balances accuracy and efficiency. Zero-E is zero effort, zero error network enumeration made easy with zero experience required, taking you from zero to elite-- ...ok you get it. Among many other functions, it generates multiple files for various analysis purposes. So embrace your inner script kiddie, sit back in your reclining ergonomic chair, and take a nap while ZrE does your work for you.
+Host discovery and service enumeration are part of every network pentest and routine network check. It's relatively straightforward, and we could all probably do it in our sleep (you will be with this tool). But ensuring thoroughness and accuracy while maximizing efficiency is a tedious process that requires attentiveness. Zero-E (ZrE) aims to automate this process in a fire-and-forget manner to free up your attention, enabling you to work on other things and save valuable time. It uses a thoughtful, extensively-tested methodology that balances thoroughness, accuracy, and efficiency. Among many other functions, it generates multiple files for various analysis purposes and easy post-scan target acquisition. 
+
+Zero in on your environment with zero experience required, taking you from zero to elite-- ...ok you get it. It's zero effort, zero error network enumeration made easy. So embrace your inner script kiddie, sit back in your reclining ergonomic chair, and take a nap while Zero-E does your work for you.
 
 Please consider supporting this project (especially if using it for commercial or business purposes) with Github Sponsor, [BuyMeACoffee](https://www.buymeacoffee.com/inscyght), or Bitcoin (wallet address: 37Gofs5XGv8zB8odoFTJLv8NZk9TvwSr3i)
+
 
 # Features 
 1. Performs initial discovery scans for alive hosts and open ports
 1. Generates a file with alive hosts and a file with open TCP and UDP (if enabled) ports for reference
-1. Performs in-depth TCP and UDP (if enabled) service scans against alive hosts and open ports from discovery scans
+1. Performs in-depth TCP and UDP (if enabled) service scans against only the alive hosts and open ports from the discovery scans
 1. Includes a checkpoint system for resuming scans in case they're stopped before completion
+1. Supports sessions. Useful for saving multiple scan states or running simultaneous scans (not recommended)
 1. Option for both external and internal scans, which changes scan methodology appropriately
 1. Allows for enabling or disabling UDP scans
-1. Detects, alerts on, and excludes from service scans, hosts with more than 100 ports open
-1   - It's highly unusual for a host to have this many ports open and indicates a possible deception host or firewall affecting scan results
-1. Generates a file with open ports in Nessus-ready format for faster scanning
+1. Detects, alerts on, and excludes from service scans hosts with more than 100 ports open
+   - It's highly unusual for a host to have this many ports open and indicates a possible deception host or firewall affecting scan results
 1. Accepts command switches, but reverts to interactive prompts if required switches are left out
-1. Detects and informs you of invalid targets
+1. Performs a plethora of checks and includes functions to prevent as many potential scan errors as possible
+1. Integrated [ntfy](https://github.com/binwiederhier/ntfy) functionality for sending notifications to your devices
+    - Useful for large networks with long scan times
+1. For internal scans, which typically include more target hosts, detects the total number of hosts and adjusts scan speeds accordingly
+1. Includes functions to calculate and display the total number of target IP addresses, and to generate a list of unique, single IP addresses from the IP addresses, ranges, and CIDRs in the passed file without needing ipcalc or prips
+1. Generates a file with open ports in Nessus-ready format for faster scanning
 1. Written as a single Bash script for maximum portability, compatibility, and ease of use
 1. Includes timestamps in terminal output and a log file for reference
-1. On internal scans, which typically include more target hosts, detects the total number of hosts and adjusts scan speeds accordingly
 1. Checks if running on MacOS and adjusts commands accordingly (untested)
-1. Includes a `--count` option to calculate and display the total number of target IP addresses
-1. Includes a `--geniplist` option that generates a list of unique, single IP addresses from the IP addresses, ranges, and CIDRs in the passed file without needing ipcalc or prips
-1. Includes a `--only` option to enable only UDP scanning and/or running only the specified stage/scan
-1   - Use case example: Initial run has UDP scans disabled for faster completion. Once completed, use --only and enable UDP to only run UDP scans while analyzing TCP results 
-1. Includes a `--ngineer` option that enables the entry of custom masscan and nmap options for each scan (experimental)
-1. Includes a `--listwinhosts` option that parses standard Nmap output and lists Windows hosts. Runs automatically when running a scan.
-1. Includes a `--parseports` option that parses grep-able Nmap output for the specified ports and outputs the results in a readable and grepable format. Runs automatically when running a scan.
-1. Includes a ` --listiphostnames` option that parses standard Nmap output and lists IP address/hostname pairs. Runs automatically when running a scan.
+1. Includes an option to enable only UDP scanning and/or running only the specified stage/scan
+   - Use case example: Initial run has UDP scans disabled for faster completion. Once completed, and while analyzing TCP results, use `--only` and enable UDP to only run UDP scans 
+1. Has a function that enables the entry of custom masscan and nmap options for each step in the scanning process (experimental)
+1. Includes functions that parse Nmap output and create lists for various analysis purposes, which also run automatically during scans.
+
 
 # Requirements
 - Nmap
@@ -40,10 +44,12 @@ Please consider supporting this project (especially if using it for commercial o
 - realpath
 - A file containing the list of target IP addresses
     - Each single IP, range, and/or CIDR should be on a new line in typical Nmap/Masscan syntax
+- curl (if enabling ntfy notifications)
+
 
 # How To
 
-## Interactive Prompts (Default method)
+## Basic usage (interactive prompts)
 1. `sudo ./zero-e` 
 2. At the prompts, enter:
     1. the stage to start at
@@ -54,45 +60,72 @@ Please consider supporting this project (especially if using it for commercial o
     1. the file path of the file containing the IP addresses to exclude from scans, if any
 3. Embrace your inner script kiddie, sit back in your reclining ergonomic chair, and take a nap while ZrE does your work for you
 
-## Switches (Advanced)
-1. `sudo ./zero-e [-e || -i] [-o output_directory] [-t targets_file] [-x [excludes_file]] [-U || -u] [-S [stage] || -s] [--count filename] [--geniplist filename] [--ngineer] [--only] [--defaults]`
-    - `--help`: Self-explanatory
-    - `--count`: Calculates and displays the total number of target IP addresses
-    - `--geniplist`: Generates a list of unique, single IP addresses from the IP addresses, ranges, and CIDRs in the passed file
-    - `--ngineer`: Enables entry of custom masscan and Nmap command options
-	- `--only`: Only run UDP scans if enabled, and/or specified stage if provided -- does not apply to other options
-    - ` --listwinhosts`: Parses a standard Nmap file (.nmap) and lists the IP addresses of the Windows hosts
-    - `--parseports`:  Parses a grep-able Nmap file (.gnmap) for hosts with the specified ports open and outputs results in a readable format
-    - `--listiphostnames`: Parses a standard Nmap file (.nmap) and lists IP address and hostname pairs
-    - `--defaults`: Runs ZrE using default settings -- using options with this will overwrite the default for that option
-        - Default options are:
-            - Stage (-S/-s) -- starts at initial alives scan
-            - Targets file (-t) -- ./targets.txt
-            - Output directory (-o) -- ./ZrE-output
-            - Excluded targets (-x) -- none
-            - UDP scans (-U/-u) -- enabled
-    - `-e`: Tells ZrE to run external methodology scans -- cannot be used with -i
-    - `-i`: Tells ZrE to run internal methodology scans -- cannot be used with -e
-    - `-o`: Sets the output directory where generated files will be saved to
-    - `-t`: Sets the file containing the target IP addresses -- each single IP, range, or CIDR must be on a new line
-    - `-x`: Sets the file containing the IP addresses to exclude -- provide no argument to disable and not be prompted
-    - `-U`: Enables UDP scans -- cannot be used with -u
-    - `-u`: Disables UDP scans -- cannot be used with -U
-    - `-S`: With no arguments, resumes from saved stage -- cannot be used with -s
-        - Will skip to the specified stage, if provided -- valid stages are:
-            - discovery-alives
-            - discovery-openports
-            - discovery-udp
-            - discovery-lists
-            - servicescan-tcp
-            - servicescan-udp
-    - `-s`: Disables stage resuming and selection and starts at initial alives scan -- cannot be used with -S
-        - Stages are still saved for resuming later as ZrE runs
+## Advanced usage (switches)
+1. 
+````
+sudo $(basename $0) [-e | -i] [-o <output_directory>] [-t <targets_file>] [-x [excludes_file]]"
+                    [-U | -u] [-S [stage] | -s]"
+                    [--defaults] [--ngineer] [--only]"
+                    [--count <filename>] [--geniplist <filename>]"
+                    [--listwinhosts <StandardNmapFile> [OutputFile]]"
+                    [--parseports <GrepableNmapFile> <Comma,Separated,Ports> [OutputFileName]]"
+                    [--listiphostname <StandardNmapFile> [OutputFile]]"
+                    [--ntfy [priority,]<server/topic_url>] [--session <session_name>]"
+                    [--help] [--version]"
+
+PRIMARY OPTIONS (ZrE will prompt for these if not provided):"
+  -e               Run external assessment scans (cannot be used with -i)"
+  -i               Run internal assessment scans (cannot be used with -e)"
+  -o <dir>         Set output directory for generated files"
+  -t <file>        Set file containing target IP addresses (one per line: single IP, range, or CIDR)"
+  -x [file]        Set file containing IP addresses to exclude (omit argument to disable exclusion prompt)"
+  -U               Enable UDP scans (cannot be used with -u)"
+  -u               Disable UDP scans (cannot be used with -U)"
+  -S [stage]       If no stage provided, resume from saved stage (cannot be used with -s)"
+                   If stage provided, skip to the specified stage"
+                   Available stages:"
+                     - discovery-alives (TCP-only)"
+                     - discovery-ports (TCP-only)"
+                     - discovery-udp"
+                     - discovery-lists"
+                     - services-tcp"
+                     - services-udp"
+  -s               Start from the beginning (disables stage resuming but still saves stages for later resumption)"
+
+AUXILIARY OPTIONS (Enable additional functionality):"
+  --defaults       Run ZrE with default settings (overridden by explicitly provided options)"
+                   Default settings:"
+                     - Stage (-S/-s): Starts at initial alives scan"
+                     - Targets file (-t): ./targets.txt"
+                     - Output directory (-o): ./zre-output"
+                     - Excluded targets (-x): None"
+                     - UDP scans (-U/-u): Enabled"
+  --ngineer        Enable entry of custom command options"
+  --only           Run only UDP scans (if enabled) and/or specified stage (does not apply to other options)"
+  --count <file>   Count total target IP addresses (does not require sudo)"
+  --geniplist <file>"
+                   Generate a list of single IP addresses from IPs, ranges, and CIDRs in the provided file"
+                   (does not require sudo)"
+  --listwinhosts <NmapFile> [OutputFile]"
+                   Parse a standard Nmap file (.nmap) to list IP addresses of Windows hosts (does not require sudo)"
+  --parseports <GrepableNmapFile> <Comma,Separated,Ports> [OutputFileName]"
+                   Parse a grepable Nmap file (.gnmap) for hosts with specified open ports"
+                   and output results in a readable format (does not require sudo)"
+  --listiphostnames <NmapFile> [OutputFile]"
+                   Parse a standard Nmap file (.nmap) to list IP address and hostname pairs"
+                   (does not require sudo)"
+  --ntfy [priority,]<server/topic_url>"
+                   Enable ntfy notifications (priority 1-5 optional, followed by server/topic URL)"
+  --session <name> Enable session functionality (provide a new or existing session name)"
+                   To resume a session, provide the session name with the -S option"
+  --help           Display this help message"
+  --version        Display the version of Zero-E"
+````
 2. If required options aren't provided, Zero-E will revert to prompting the user for the missing option(s)
 3. Embrace your inner script kiddie, sit back in your reclining ergonomic chair, and take a nap while ZrE does your work for you
 
 ## Install to $PATH
-1. Add `zero-e` to PATH, so it's able to be called as a command from anywhere
+1. Add `zero-e` to PATH, so it's able to be called as a command
     - Run the included `installzre.sh`, which will add Zero-E to PATH for you; or use `-b` to specify a destination. 
     - If you prefer doing this manually, here's how I set mine up: I set up an alias (`zrepath`) in my shell (`~/.zshrc`) that quickly copies ZrE into the primary PATH directory (`/usr/local/bin`) as `zeroe` for quick updating when changes are made 
        - `alias zrepath='sudo cp /path/to/zero-e /usr/local/bin/zeroe && sudo chmod +x /usr/local/bin/zeroe'`
@@ -104,11 +137,13 @@ Please consider supporting this project (especially if using it for commercial o
 ## Stage system
 - The stage function allows for resuming from the automatically saved stage, or from a specified stage
 - If resuming a stage, it resumes both masscan and Nmap scans from exactly where they left off
+- If creating a session with `--session`, each session will have its own saved stage
 ### Resuming from a saved stage
 1. Option 1: Pass the `-S` option with no arguments
-2. Option 2: Run ZrE without any options
+    - Also include `--session <session_name>` if the initial scan was in a session
+2. Option 2: Run ZrE without any options (or with `--session <session_name>`)
     - At the prompt, enter `y` to resume
-### Restarting at a specified stage
+### Starting at a specified stage
 - Skipping to a specific stage will only work if doing so after running ZrE up to that point, and specifying the previous output directory. Skipping will error if running ZrE at that stage for the first time, as certain stages require files that won't yet exist.
 - ZrE will automatically create backups if it detects important output files that will be overwritten when running subsequent stages.
 
@@ -177,7 +212,7 @@ Please consider supporting this project (especially if using it for commercial o
     - `nmap -v -sU -Pn -sV --open --min-rate 1000 --max-rate 3000 --reason -p <$open_ports> -oA <$output_file> --excludefile <$excludes_file> -iL <$targets_file>`
   
 # Planned improvements
+- Stuff I happen to think
 - Docker-ization
-- integrating ntfy.sh for completion notifications
 - Allowing IP addresses to be passed for targets and excludes (vs requiring a file)
 - Option to automate launching Nessus scans
