@@ -212,7 +212,7 @@ AUXILIARY OPTIONS (Enable additional functionality):"
     - `nmap -v -sU -Pn -sV --open --min-rate 1000 --max-rate 3000 --reason -p <$open_ports> -oA <$output_file> --excludefile <$excludes_file> -iL <$targets_file>`
   
 # Planned improvements
-- Stuff I happen to think
+- Stuff I happen to think of
 - Docker-ization
 - Allowing IP addresses to be passed for targets and excludes (vs requiring a file)
 - Option to automate launching Nessus scans
