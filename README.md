@@ -63,7 +63,7 @@ Please consider supporting this project (especially if using it for commercial o
 ## Advanced usage (switches)
 1. 
 ````
-sudo $(basename $0) [-e | -i] [-o <output_directory>] [-t <targets_file>] [-x [excludes_file]]"
+sudo zeroe [-e | -i] [-o <output_directory>] [-t <targets_file>] [-x [excludes_file]]"
                     [-U | -u] [-S [stage] | -s]"
                     [--defaults] [--ngineer] [--only]"
                     [--count <filename>] [--geniplist <filename>]"
