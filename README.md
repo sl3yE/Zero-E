@@ -121,7 +121,7 @@ AUXILIARY OPTIONS (Enable additional functionality):"
   --help           Display this help message"
   --version        Display the version of Zero-E"
 ````
-2. If required options aren't provided, Zero-E will revert to prompting the user for the missing option(s)
+2. If required options aren't provided, Zero-E will prompt you for the missing option(s)
 3. Embrace your inner script kiddie, sit back in your reclining ergonomic chair, and take a nap while ZrE does your work for you
 
 ## Install to $PATH
