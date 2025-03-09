@@ -1,44 +1,65 @@
 #!/usr/bin/env bash
-version="Zero-E (ZrE) v1.3 by @Inscyght"
+version="Zero-E (ZrE) v1.3.1 by @Inscyght"
 ###Functions
-function updatecheck { #Check version and update the script
-	{	
-		URL="https://raw.githubusercontent.com/inscyght/zero-e/main/zero-e"
-    	#Function to get the latest version string from the script on GitHub
-    	get_latest_version() {
-    	    curl -s $URL | grep -m 1 '^version=' | awk -F'"' '{print $2}'
-    	}
-    	#Function to update the script
-    	update_script() {
-    	    curl -o zero-e $URL
-    	    chmod +x zero-e
-    	}
-    	latest_version=$(get_latest_version)
-    	if [ "$version" != "$latest_version" ]; then
-    	    echo "A new version of Zero-E is available: $latest_version"
-    	    read -p "Do you want to update to the latest version? <y/n>: " response
-    	    if [ "$response" == "y" ]; then
-    	        echo ""
-				echo "Updating..."
-    	        update_script
-				echo ""
-    	        echo "Zero-E updated to version $latest_version -- please re-run ZrE"
-    	        exit 0
-    	    else
-    	        echo "Continuing with the local version"
-				echo ""
-    	    fi
-    	fi
+function updatecheck { # Check version and update the script
+    {   
+        URL="https://raw.githubusercontent.com/inscyght/zero-e/main/zero-e"
+        TIMEOUT=1  # Set the maximum time (in seconds) for the curl request
 
-		# Check if script is named 'zero-e.sh' and rename
-		script_name=$(basename "$0")
-		if [ "$script_name" = "zero-e.sh" ]; then
-		    echo "ZrE's script file renamed to zero-e in v1.1"
-		    mv "$0" "$(dirname "$0")/zero-e"
-		    echo "Local ZrE file renamed to 'zero-e'; please re-run"
-		    exit 0
-		fi
-	} >&2
+        # Function to get the latest version string from the script on GitHub
+        get_latest_version() {
+            latest_version=$(curl -s --fail --max-time "$TIMEOUT" "$URL" | grep -m 1 '^version=' | awk -F'"' '{print $2}')
+            if [ $? -ne 0 ] || [ -z "$latest_version" ]; then
+                echo "Failed to fetch the latest version from GitHub"
+                return 1  # Indicate failure
+            fi
+            echo "$latest_version"
+        }
+        # Function to update the script
+        update_script() {
+            # Ensure correct location and overwrite
+            script_path="$(dirname "$0")/zero-e"
+            curl -o "$script_path" --max-time "$TIMEOUT" "$URL" && chmod +x "$script_path"
+            if [ $? -ne 0 ]; then
+                echo "Failed to update the script -- check your internet connection or GitHub access"
+                return 1
+            fi
+        }
+        latest_version=$(get_latest_version)
+        # If the version fetch fails, skip the update check
+        if [ $? -ne 0 ]; then
+            #echo "Skipping update check due to connectivity issues."
+            return 0
+        fi
+        # Proceed with the update check if the version fetch was successful
+        if [ "$version" != "$latest_version" ]; then
+            echo "A new version of Zero-E is available: $latest_version"
+            read -p "Do you want to update to the latest version? <y/n>: " response
+            if [ "$response" == "y" ]; then
+                echo ""
+                echo "Updating..."
+                update_script
+                if [ $? -eq 0 ]; then
+                    echo ""
+                    echo "Zero-E updated to version $latest_version -- please re-run ZrE"
+                    exit 0
+                else
+                    echo "Update failed"
+                fi
+            else
+                echo "Continuing with the local version"
+                echo ""
+            fi
+        fi
+        # Check if script is named 'zero-e.sh' and rename
+        script_name=$(basename "$0")
+        if [ "$script_name" = "zero-e.sh" ]; then
+            echo "ZrE's script file renamed to zero-e in v1.1"
+            mv "$0" "$(dirname "$0")/zero-e"
+            echo "Local ZrE file renamed to 'zero-e' -- please re-run ZrE"
+            exit 0
+        fi
+    } >&2
 }
 
 function settype { #Set external or internal
@@ -184,7 +205,7 @@ function targets {	#Sets the targets file
 		checkfile="$ips"
 		checkinvalidips #Check targets file for invalid entries
 	else
-		echo "[?] Enter the target IP addresses file -- each single IP, range, or CIDR must be on a new line: "
+		echo "[?] Enter the target IP addresses file: "
 		while true; do
 			read -e -p " [>] " ips
 			if [[ -z "$ips" ]] || [[ ! -f "$ips" ]]; then
@@ -199,7 +220,7 @@ function targets {	#Sets the targets file
 				else
 					checkfile="$ips"
 					checkinvalidips #Check targets file for invalid entries
-					if [[ $allvalid = 1 ]]; then
+					if [[ "$allvalid" = 1 ]]; then
 						t_opt="$ips"
 						break
 					fi
@@ -267,7 +288,7 @@ function excludes { # Sets the excludes file
                 else
                     checkfile="$nostrikes"
                     checkinvalidips # Check targets file for invalid entries
-                    if [[ $allvalid = 1 ]]; then
+                    if [[ "$allvalid" = 1 ]]; then
                         x_opt="$nostrikes"
                         break
                     fi
@@ -397,9 +418,9 @@ function checkinvalidips { #Checks targets file for invalid entries
 	#Read file line by line, checking for invalid entries
 	anyinvalid=0
 	while IFS= read -r line || [[ -n "$line" ]]; do #Condition after the || ensures last line of file is checked even if it's not a newline
-		if [[ $line =~ $ip_single ]]  || [[ $line =~ $ip_cidr ]] || [[ $line =~ $ip_range_full ]]; then
+		if [[ "$line" =~ $ip_single ]]  || [[ $line =~ $ip_cidr ]] || [[ $line =~ $ip_range_full ]]; then
 			:
-		elif [[ $line =~ $ip_range_anyoct ]]; then
+		elif [[ "$line" =~ $ip_range_anyoct ]]; then
 			#echo -e "\e[31m [X] Error: $ips contains an entry that masscan cannot parse -- $line \e[0m"
 			echo -e "\e[31m [X] Error: $checkfile contains an improperly formatted range -- $line \e[0m" >&2
 			echo -e "\e[31m            IP address ranges must be in the format x.x.x.x-y.y.y.y \e[0m" >&2
@@ -412,7 +433,7 @@ function checkinvalidips { #Checks targets file for invalid entries
 		fi
 	done <"$checkfile"
 
-	if [ $anyinvalid -ne 0 ]; then
+	if [ "$anyinvalid" -ne 0 ]; then
 		allvalid=0
 		if [[ -z "$t_opt" && "$defaults" = true ]] || [ -n "$t_opt" ]  || [ -n "$x_opt" ] || [[ "$countopt" == "y" ]] || [[ "$geniplistopt" == "y" ]]; then
 			exit 1
@@ -453,7 +474,7 @@ function stageinit { # The checkpoint system
 		echo "$(pwd)" > "$initdir_file"
 		stage_cont=true
 	elif [[ ! -f "$stage_file" && "$S_opt" = "disabled" ]] || [[ -f "$stage_file" && "$(cat "$stage_file")" = "script-start" ]]; then # If stage file does not exist and stage option is disabled OR saved stage is script-start
-		echo "[?] Start a new scan <y>, or start from a specific stage? -- see README or --help for stage options"
+		echo "[?] Start a new scan <y>, or start from a specific stage?																"
 		while true; do
 			read -e -p " [>] " stage
 			if [[ "$stage" = "y" ]]; then
@@ -476,7 +497,7 @@ function stageinit { # The checkpoint system
 		resume="y"
 	elif [[ ! -f "$stage_file" ]] && [[ -z "$S_opt" ]]; then # If stage file does not exist and resume option is enabled
 		echo -e "\e[31m [X] Error: No saved stage exists \e[0m" >&2
-		echo "[?] Start a new scan <y>, or start from a specific stage? -- see README or --help for stage options"
+		echo "[?] Start a new scan <y>, or start from a specific stage?																"
 		while true; do
 			read -e -p " [>] " stage
 				if [[ "$stage" = "y" ]]; then
@@ -495,7 +516,7 @@ function stageinit { # The checkpoint system
 				fi
 		done
 	elif [[ -f "$stage_file" && "$S_opt" = "disabled" && "$(cat "$stage_file")" != "script-start" ]]; then # If stage file exists, stage option is disabled, and saved stage is not script-start
-		echo "[?] Resume from '$(cat "$stage_file")' <y/n>, or start from a specific stage? -- see README or --help for stage options"
+		echo "[?] Resume from '$(cat "$stage_file")' <y/n>, or start from a specific stage?																"
 		while true; do
 			read -e -p " [>] " stage
 			if [[ "$stage" != "script-start" && "$stage" != "discovery-ports" && "$stage" != "discovery-alives" && "$stage" != "discovery-udp" && "$stage" != "discovery-lists" && "$stage" != "services-tcp" && "$stage" != "services-udp"  && "$stage" != "methodology" && "$stage" != "y" && "$stage" != "n" ]]; then
@@ -1005,7 +1026,7 @@ function statusmasscan {
 function errorcheck { #Checks for errors in command output
 	errorlog="/logs/$typevar-errors.log"
 
-	if [ $exitstatus -ne 0 ]; then
+	if [ "$exitstatus" -ne 0 ]; then
 		echo "--------" >> "$errorlog"
 		echo "COMMAND: $checked_cmd" >> "$errorlog"
 		echo "===================================" >> "$errorlog"
@@ -1403,10 +1424,10 @@ function totaltargets {  # Counts total number of hosts in a targets file
             continue
         fi
 
-        if [[ $line == *"/"* ]]; then
+        if [[ "$line" == *"/"* ]]; then
             # CIDR notation.
             hosts=$(calculate_cidr_hosts "$line")
-        elif [[ $line == *"-"* ]]; then
+        elif [[ "$line" == *"-"* ]]; then
             # IP range.
             hosts=$(calculate_ip_range_hosts "$line")
         else
@@ -1534,7 +1555,7 @@ function alivesandportscheck { #checks if alives and openPorts lists are populat
 function removefirewallrule { #removes the firewall rule used in int methodology
 	firewallset=false
 	oscheck=$(uname)
-	if [ $oscheck = "Darwin" ]; then #For st00pid Macs
+	if [ "$oscheck" = "Darwin" ]; then #For st00pid Macs
 		cp "/etc/pf.conf" "$filepath/logs/pf.conf.bak-postscript"
 		sudo sed -i "/block drop in proto tcp from any to any port 55555/d" /etc/pf.conf
 		pfctl -f /etc/pf.conf >> $filepath/logs/mac-pfctl.log 2>&1
@@ -1550,7 +1571,7 @@ function removefirewallrule { #removes the firewall rule used in int methodology
 function setfirewallrule { #sets the firewall rule used in int methodology
 	firewallset=true
 	oscheck=$(uname)
-	if [ $oscheck = "Darwin" ]; then #For st00pid Macs
+	if [ "$oscheck" = "Darwin" ]; then #For st00pid Macs
 		macpf=$(pfctl -s info | grep -o "Status: .*" | cut -d' ' -f2) #gets pfctl status
 		if [ "$macpf" = "Disabled" ]; then
 			pfctl -e >> $filepath/logs/mac-pfctl.log 2>&1 #enable pfctl
@@ -1603,7 +1624,7 @@ function ntfy { # enables ntfy functionality
         if [ "$zre_started" == true ]; then
         	# Send the POST request to the ntfy server
 			local msg="$1"
-        	curl -H "X-Priority: $ntfy_lvl" -d "$msg" "$ntfy_url" >> "$filepath/logs/$typevar-ntfy.log" 2>&1
+        	curl -H "X-Priority: $ntfy_pri" -d "$msg" "$ntfy_url" >> "$filepath/logs/$typevar-ntfy.log" 2>&1
 		fi
     fi
 }
@@ -1747,6 +1768,12 @@ function sessioninit { # Initializes sessions
 		fi
 	fi
 }
+
+#Banner
+echo "$version -- https://github.com/Inscyght/Zero-E"
+echo "Support this project -- https://github.com/sponsors/Inscyght"
+echo "                        https://buymeacoffee.com/inscyght"
+echo ''
 
 updatecheck
 
@@ -1956,13 +1983,13 @@ elif [ "$listiphostnames_flag" = true ]; then
 fi
 
 #Check sudo
-if [[ $EUID -ne 0 ]]; then # && [[ "$arg" != "--help" || "$arg" != "--version" || "$arg" != "--count" || "$arg" != "--geniplist" || "$arg" != "--parseports" ]]; then
+if [[ "$EUID" -ne 0 ]]; then # && [[ "$arg" != "--help" || "$arg" != "--version" || "$arg" != "--count" || "$arg" != "--geniplist" || "$arg" != "--parseports" ]]; then
    	echo -e "\e[31m [X] Error: $(basename $0) requires sudo \e[0m" >&2
    	exit 1
 fi
 
 #Check if post-sudo required tools are installed
-if [ $ntfy_flag = true ]; then
+if [ "$ntfy_flag" = true ]; then
 	mactools=("curl" "nmap" "masscan" "pfctl" "dos2unix" "realpath")
 	linuxtools=("curl" "nmap" "masscan" "iptables" "dos2unix" "realpath")
 	checktools
@@ -2080,10 +2107,10 @@ while getopts ':eio:t:x:UusS:' opt "${remaining_args[@]}" 2>/dev/null; do
 done
 #Check if the last option was -o or -t and if the arg is missing.
 last_arg="${@: -1}"
-if [[ $last_arg == "-o" ]] && [[ -z "$o_opt" ]]; then
+if [[ "$last_arg" == "-o" ]] && [[ -z "$o_opt" ]]; then
 	echo -e "\e[31m [X] Error: -o requires a directory name or path \e[0m" >&2
 	exit 1
-elif [[ $last_arg == "-t" ]] && [[ -z "$t_opt" ]]; then
+elif [[ "$last_arg" == "-t" ]] && [[ -z "$t_opt" ]]; then
 	echo -e "\e[31m [X] Error: -t requires an existing file containing the list of target IP addresses (e.g. targets.txt) \e[0m" >&2
 	exit 1
 fi
@@ -2109,12 +2136,6 @@ if [ "$t_opt" = "$x_opt" ] && [ -n "$t_opt" ] && [ -n "$x_opt" ]; then
 fi
 #Validate ntfy argument
 ntfy
-
-#Banner
-echo "$version -- https://github.com/Inscyght/Zero-E"
-echo "Support this project -- https://github.com/sponsors/Inscyght"
-echo "                        https://buymeacoffee.com/inscyght"
-echo ''
 
 #Set the stage to start at
 sessioninit
@@ -2523,13 +2544,13 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 			wait $pid
 			exitstatus=$?
 			printf "\r%-${#indicator}s\r" "" #Clears status indicator line
-			if [ $exitstatus -eq 0 ]; then
+			if [ "$exitstatus" -eq 0 ]; then
 				status_msg="[+] Nmap TCP service scan complete, results saved as $typevar-tcp-servicescan-results -- $(date)"
 				echo -e "\e[32m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 				ntfy "$status_msg"
 			else
 				errorcheck
-				if [ $ntfy_flag = true ]; then
+				if [ "$ntfy_flag" = true ]; then
 					ntfy "[!] Nmap TCP service scan failed -- Check errors.log"
 				fi
 			fi
@@ -2592,13 +2613,13 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 			wait $pid
 			exitstatus=$?
 			printf "\r%-${#indicator}s\r" "" #Clears status indicator line
-			if [ $exitstatus -eq 0 ]; then
+			if [ "$exitstatus" -eq 0 ]; then
 				status_msg="[+] Nmap UDP service scan complete, results saved as $typevar-udp-servicescan-results -- $(date)"
 				echo -e "\e[32m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 				ntfy "$status_msg"
 			else
 				errorcheck
-				if [ $ntfy_flag = true ]; then
+				if [ "$ntfy_flag" = true ]; then
 					ntfy "[!] Nmap UDP service scan failed -- Check errors.log"
 				fi
 			fi
@@ -2737,7 +2758,7 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 	#Stage -- start
 	if [[ "$stage" == "discovery-ports" ]] && ! { [[ "$udp" == "y" ]] && [[ "$only_flag" == true ]]; }; then
 		
-		if [ $firewallset != true ]; then
+		if [ "$firewallset" != true ]; then
 			setfirewallrule
 		fi
 		#Masscan open port discovery
@@ -2979,13 +3000,13 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 			wait $pid
 			exitstatus=$?
 			printf "\r%-${#indicator}s\r" "" #Clears status indicator line
-			if [ $exitstatus -eq 0 ]; then
+			if [ "$exitstatus" -eq 0 ]; then
 				status_msg="[+] Nmap TCP service scan complete, results saved as $typevar-tcp-servicescan-results -- $(date)"
 				echo -e "\e[32m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 				ntfy "$status_msg"
 			else
 				errorcheck
-				if [ $ntfy_flag = true ]; then
+				if [ "$ntfy_flag" = true ]; then
 					ntfy "[!] Nmap TCP service scan failed -- Check errors.log"
 				fi
 			fi
@@ -3048,13 +3069,13 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 			wait $pid
 			exitstatus=$?
 			printf "\r%-${#indicator}s\r" "" #Clears status indicator line
-			if [ $exitstatus -eq 0 ]; then
+			if [ "$exitstatus" -eq 0 ]; then
 				status_msg="[+] Nmap UDP service scan complete, results saved as $typevar-udp-servicescan-results -- $(date)"
 				echo -e "\e[32m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 				ntfy "$status_msg"
 			else
 				errorcheck
-				if [ $ntfy_flag = true ]; then
+				if [ "$ntfy_flag" = true ]; then
 					ntfy "[!] Nmap UDP service scan failed -- Check errors.log"
 				fi
 			fi
