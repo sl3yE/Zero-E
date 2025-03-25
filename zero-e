@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-version="Zero-E (ZrE) v1.3.1 by @Inscyght"
+banner="Zero-E (z0e) by @Inscyght"
+version="v1.4"
 ###Functions
 function updatecheck { # Check version and update the script
     {   
@@ -9,7 +10,7 @@ function updatecheck { # Check version and update the script
         # Function to get the latest version string from the script on GitHub
         get_latest_version() {
             latest_version=$(curl -s --fail --max-time "$TIMEOUT" "$URL" | grep -m 1 '^version=' | awk -F'"' '{print $2}')
-            if [ $? -ne 0 ] || [ -z "$latest_version" ]; then
+			if [ $? -ne 0 ] || [ -z "$latest_version" ]; then
                 echo "Failed to fetch the latest version from GitHub"
                 return 1  # Indicate failure
             fi
@@ -24,7 +25,22 @@ function updatecheck { # Check version and update the script
                 echo "Failed to update the script -- check your internet connection or GitHub access"
                 return 1
             fi
+            
+            # Check if zeroe is already in PATH; if so, reinstall to that location
+            if command -v zeroe >/dev/null 2>&1; then
+                zeroe_cmd_path="$(command -v zeroe)"
+                echo "Detected Zero-E is already installed at $zeroe_cmd_path"
+                echo "Reinstalling Zero-E to $zeroe_cmd_path"
+                sudo cp "$script_path" "$zeroe_cmd_path" && sudo chmod +x "$zeroe_cmd_path"
+                if [ $? -eq 0 ]; then
+                    echo "Zero-E reinstalled successfully."
+					z0e_resinstall=true
+                else
+                    echo "Failed to reinstall Zero-E."
+                fi
+            fi
         }
+
         latest_version=$(get_latest_version)
         # If the version fetch fails, skip the update check
         if [ $? -ne 0 ]; then
@@ -34,14 +50,17 @@ function updatecheck { # Check version and update the script
         # Proceed with the update check if the version fetch was successful
         if [ "$version" != "$latest_version" ]; then
             echo "A new version of Zero-E is available: $latest_version"
-            read -p "Do you want to update to the latest version? <y/n>: " response
+            read -p "Update to the latest version? <y/n>: " response
             if [ "$response" == "y" ]; then
                 echo ""
                 echo "Updating..."
                 update_script
                 if [ $? -eq 0 ]; then
                     echo ""
-                    echo "Zero-E updated to version $latest_version -- please re-run ZrE"
+                    echo "Zero-E updated to $latest_version"
+					if [ "$z0e_resinstall" != true ]; then
+						echo "If previously installed as a command, reinstall Zero-E to \$PATH"
+					fi
                     exit 0
                 else
                     echo "Update failed"
@@ -54,9 +73,9 @@ function updatecheck { # Check version and update the script
         # Check if script is named 'zero-e.sh' and rename
         script_name=$(basename "$0")
         if [ "$script_name" = "zero-e.sh" ]; then
-            echo "ZrE's script file renamed to zero-e in v1.1"
+            echo "z0e's script file renamed to zero-e in v1.1"
             mv "$0" "$(dirname "$0")/zero-e"
-            echo "Local ZrE file renamed to 'zero-e' -- please re-run ZrE"
+            echo "Local zero-e.sh file renamed to 'zero-e' -- please re-run z0e"
             exit 0
         fi
     } >&2
@@ -72,7 +91,7 @@ function settype { #Set external or internal
 			e_opt=false
 		fi
 	else
-		echo "[?] Are you performing an <e>xternal or <i>nternal scan?"
+		echo "[?] Perform <e>xternal or <i>nternal scans:"
 		while true; do
 			read -e -p " [>] " type
 			if [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = "external" ] || [ "$type" = "External" ] || [ "$type" = "Ext" ] || [ "$type" = "ext" ]; then
@@ -92,7 +111,7 @@ function settype { #Set external or internal
 
 function output { #sets the output dir
 	if [ -z "$o_opt" ] && [ "$defaults" = true ]; then
-		filepath="./zre-output"
+		filepath="./z0e-output"
 	elif [ -n "$o_opt" ]; then
 		filepath="$o_opt"
 	else
@@ -140,10 +159,10 @@ function output { #sets the output dir
     # Proceed with backup if necessary
     if [ "$shouldBackup" = true ]; then
         # The directory contains specific files indicating significant script activity,
-        # find the next available ZrEscan#.bak name for backup
+        # find the next available z0escan#.bak name for backup
         local baseDir=$(dirname "$filepath")
         local name=$(basename "$filepath")
-        local prefix="${name}-ZrE"
+        local prefix="${name}-z0e"
         local suffix=".bak"
         local idx=1
         while true; do
@@ -153,13 +172,13 @@ function output { #sets the output dir
             ((idx++))
         done
         local newDir="$baseDir/$prefix$idx$suffix"
-        echo "     ZrE results files detected in output directory -- backing up '$filepath' to '$newDir'"
+        echo "     z0e results files detected in output directory -- backing up '$filepath' to '$newDir'"
         cp -r "$filepath" "$newDir"
     fi
 
 	#Remove old files if they exist in the output dir and choosing fresh start
 	if { [ "$stage" = "script-start" ] && [ "$resume" != "y" ]; } || \
-	   { [ -f "$filepath/logs/misc-files/targets-file.zre" ] && [ "$(realpath "$t_opt")" != "$(cat "$filepath/logs/misc-files/targets-file.zre")" ]; }; then
+	   { [ -f "$filepath/logs/misc-files/targets-file.z0e" ] && [ "$(realpath "$t_opt")" != "$(cat "$filepath/logs/misc-files/targets-file.z0e")" ]; }; then
 	    find "$filepath" -type f -name "${typevar}-*" -exec rm -f {} +
 	fi
 
@@ -171,138 +190,370 @@ function output { #sets the output dir
 	filepath="$(realpath $filepath)"
 }
 
-function targets {	#Sets the targets file
-	if [[ "$session_flag" = true && -n "$session" ]]; then
-        session_dir="/var/lib/zeroe/sessions/$session"
-        targets_file="$session_dir/targets-single-ips.zre"
-    else
-        targets_file="/var/lib/zeroe/targets-single-ips.zre"
-    fi
-	
-	if [[ -z "$t_opt" && "$defaults" = true ]]; then
-		ips="targets.txt"
-		if [[ ! -f "$ips" ]]; then
-			echo -e "\e[31m [X] Error: The default targets file (./targets.txt) does not exist \e[0m" >&2
-			exit 1
-		elif [ ! -s "$ips" ]; then #Check if the file is empty
-        	echo -e "\e[31m [X] Error: $ips is empty \e[0m" >&2
-			exit 1
-		fi
-		checkfile="$ips"
-		checkinvalidips #Check targets file for invalid entries
-	elif [ -n "$t_opt" ]; then
-		if [[ "$t_opt" == "-"* ]]; then
-			echo -e "\e[31m [X] Error: File names starting with '-' may cause issues with commands \e[0m" >&2
-			exit 1
-		elif [[ "$t_opt" == *" "* ]]; then
-			echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed in file names \e[0m" >&2
-			exit 1
-		elif [ ! -s "$t_opt" ]; then #Check if the file is empty
-        	echo -e "\e[31m [X] Error: $t_opt is empty \e[0m" >&2
-			exit 1
-		fi
-		ips="$t_opt"
-		checkfile="$ips"
-		checkinvalidips #Check targets file for invalid entries
-	else
-		echo "[?] Enter the target IP addresses file: "
-		while true; do
-			read -e -p " [>] " ips
-			if [[ -z "$ips" ]] || [[ ! -f "$ips" ]]; then
-				echo -e "\e[31m [X] Error: You must pass an existing file containing the IP addresses (e.g. targets.txt) \e[0m" >&2
-			elif [ ! -s "$ips" ]; then #Check if the file is empty
-        		echo -e "\e[31m [X] Error: $ips is empty \e[0m" >&2
-			else
-				if [[ "$ips" == "-"* ]]; then
-					echo -e "\e[31m [X] Error: File names starting with '-' may cause issues with commands \e[0m" >&2
-				elif [[ "$ips" == *" "* ]]; then
-					echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed in file names \e[0m" >&2
-				else
-					checkfile="$ips"
-					checkinvalidips #Check targets file for invalid entries
-					if [[ "$allvalid" = 1 ]]; then
-						t_opt="$ips"
-						break
-					fi
-				fi
-			fi
-		done
-	fi
-
-	t_opt="$(realpath $ips)"
-	ips="$(realpath $ips)"
-	ips_log=$ips
-	echo -ne "     Generating temporary list of single IP addresses for targets..."
-	geniplist "$ips" > "$targets_file"
-	echo -e "\r     Generating temporary list of single IP addresses for targets... Done"
-	ips="$targets_file"
-    t_opt="$targets_file"
-}
-
-function excludes { # Sets the excludes file
-    # Global paths for `nullexcludes.zre` (unchanged)
-    mkdir -p /var/lib/zeroe
-    touch /var/lib/zeroe/nullexcludes.zre
-    nullexcludes="/var/lib/zeroe/nullexcludes.zre"
-
-    # Determine the exclude file location based on session
+function targets {  # Sets the targets file
     if [[ "$session_flag" = true && -n "$session" ]]; then
         session_dir="/var/lib/zeroe/sessions/$session"
-        excludes_file="$session_dir/excludes-single-ips.zre"
+        targets_file="$session_dir/targets-single-ips.z0e"
     else
-        excludes_file="/var/lib/zeroe/excludes-single-ips.zre"
+        targets_file="/var/lib/zeroe/targets-single-ips.z0e"
     fi
+    ################################################################
+    # 1) If t_opt is a single existing, non-empty file with no IP pattern, just use it
+    ################################################################
+    if [ -n "$t_opt" ] && [ -f "$t_opt" ] && [ -s "$t_opt" ] \
+       && ! [[ "$t_opt" =~ [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ ]] \
+       && [[ "$t_opt" != *","* ]]
+    then
+        ips="$t_opt"
+        checkfile="$ips"
+        checkinvalidips
+    ################################################################
+    # 2) Else if t_opt is a comma‐separated list (or includes IP pattern),
+    #    merge them (just like the -t option)
+    ################################################################
+    elif [ -n "$t_opt" ] && (
+         { ! [ -f "$t_opt" ] && [[ "$t_opt" =~ [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ ]]; } \
+         || [[ "$t_opt" == *","* ]]
+       )
+    then
+		IFS=',' read -ra token_array <<< "$t_opt"
+        # build 2 parallel files:
+        #   metadata_file => lines have a prefix for "FILE" or "INPUT"
+        #   raw_file      => lines have no prefix (the actual IP or range)
+        metadata_file=$(mktemp /tmp/targets_single_ips.metadata.XXXXXX)
+        raw_file=$(mktemp /tmp/targets_single_ips.raw.XXXXXX)
+        > "$metadata_file"
+        > "$raw_file"
 
-    if [[ -z "$x_opt" && "$defaults" = true ]]; then
-        nostrikes="$nullexcludes"  # Default to global nullexcludes
-    elif [ -n "$x_opt" ]; then
-        if [[ "$x_opt" == "-"* ]]; then
-            echo -e "\e[31m [X] Error: File names starting with '-' may cause issues with commands \e[0m" >&2
-            exit 1
-        elif [[ "$x_opt" == *" "* ]]; then
-            echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed in file names \e[0m" >&2
-            exit 1
-        elif [ ! -s "$x_opt" ] && [ "$x_opt_provided" = "y" ]; then # Check if the file is empty
-            echo -e "\\e[31m [X] Error: $x_opt is empty \\e[0m" >&2
+        anyerrors=false
+        for token in "${token_array[@]}"; do
+            trimmed_token="$(echo "$token" | xargs)"
+            if [ -f "$trimmed_token" ]; then
+                # If it's a file, ensure non-empty
+                if [ ! -s "$trimmed_token" ]; then
+                    echo -e "\e[31m [X] Error: '$trimmed_token' is empty \e[0m" >&2
+                    anyerrors=true
+                    break
+                fi
+                # Merge its lines
+                while IFS= read -r fileline; do
+                    echo "__SRC:FILE:${trimmed_token}__ $fileline" >> "$metadata_file"
+                    echo "$fileline" >> "$raw_file"
+                done < "$trimmed_token"
+            else
+                # It's an IP or range
+                echo "__SRC:INPUT__ $trimmed_token" >> "$metadata_file"
+                echo "$trimmed_token" >> "$raw_file"
+            fi
+        done
+
+        if $anyerrors; then
             exit 1
         fi
-        nostrikes="$x_opt"
-        checkfile="$nostrikes"
-        checkinvalidips # Check excludes file for invalid entries
+
+        # Now run checkinvalidips on the metadata file
+        checkfile="$metadata_file"
+        checkinvalidips
+
+        # If validation passed, we set ips to the raw file
+        # so the rest of the function sees no metadata lines
+        ips="$raw_file"
+    ################################################################
+    # 3) If the user didn't set t_opt or set an invalid one,
+    #    handle the defaults or prompt logic
+    ################################################################
+    elif [[ -z "$t_opt" && "$defaults" = true ]]; then
+        ips="targets.txt"
+        if [[ ! -f "$ips" ]]; then
+            echo -e "\e[31m [X] Error: The default targets file (./targets.txt) does not exist \e[0m" >&2
+            exit 1
+        elif [ ! -s "$ips" ]; then
+            echo -e "\e[31m [X] Error: $ips is empty \e[0m" >&2
+            exit 1
+        fi
+        checkfile="$ips"
+        checkinvalidips
+    elif [ -n "$t_opt" ]; then
+        # t_opt is set but doesn't fit the above patterns
+        if [[ "$t_opt" == "-"* ]]; then
+            echo -e "\e[31m [X] Error: File names starting with '-' may cause issues with commands \e[0m" >&2
+            exit 1
+        elif [[ "$t_opt" == *" "* ]]; then
+            echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed in file names \e[0m" >&2
+            exit 1
+        elif [ ! -s "$t_opt" ]; then
+            echo -e "\e[31m [X] Error: $t_opt is empty or doesn't exist \e[0m" >&2
+            exit 1
+        fi
+        ips="$t_opt"
+        checkfile="$ips"
+        checkinvalidips
     else
-        echo "[?] Enter the excluded IP addresses file -- if none, press <enter>: "
+        ################################################################
+        # 4) Interactive prompt logic
+        ################################################################
+        echo "[?] Enter the target IP addresses and/or filename(s): "
         while true; do
-            read -e -p " [>] " nostrikes
-            if [[ -z "$nostrikes" ]]; then
-                nostrikes="$nullexcludes"
-                break
-            elif [[ ! -f "$nostrikes" ]]; then
-                echo -e "\e[31m [X] Error: You must pass an existing file containing the list of IP addresses to exclude (e.g. exclude.txt) \e[0m" >&2
-            elif [ ! -s "$nostrikes" ]; then # Check if the file is empty
-                echo -e "\\e[31m [X] Error: $nostrikes is empty \\e[0m" >&2
+            read -e -p " [>] " user_input
+
+            if [[ -z "$user_input" ]]; then
+                echo -e "\e[31m [X] Error: You must enter the target IP addresses and/or filename(s) \e[0m" >&2
+                continue
+            fi
+
+            if [ -f "$user_input" ] && [ -s "$user_input" ] \
+               && ! [[ "$user_input" =~ [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ ]] \
+               && [[ "$user_input" != *","* ]]
+            then
+                # Single existing file
+                ips="$user_input"
+				ips_log="$ips"
+                checkfile="$ips"
+                checkinvalidips
+                if [[ "$allvalid" = 1 ]]; then
+                    t_opt="$ips"
+                    break
+                fi
+
+            elif { ! [ -f "$user_input" ] && [[ "$user_input" =~ [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ ]]; } \
+                 || [[ "$user_input" == *","* ]]
+            then
+				ips_log="$user_input"
+                # Merge tokens
+                IFS=',' read -ra token_array <<< "$user_input"
+                metadata_file=$(mktemp /tmp/targets_single_ips.metadata.XXXXXX)
+                raw_file=$(mktemp /tmp/targets_single_ips.raw.XXXXXX)
+                > "$metadata_file"
+                > "$raw_file"
+                anyerrors=false
+                for token in "${token_array[@]}"; do
+                    trimmed_token="$(echo "$token" | xargs)"
+                    if [ -f "$trimmed_token" ]; then
+                        if [ ! -s "$trimmed_token" ]; then
+                            echo -e "\e[31m [X] Error: '$trimmed_token' is empty \e[0m" >&2
+                            anyerrors=true
+                            break
+                        fi
+                        while IFS= read -r fileline; do
+                            echo "__SRC:FILE:${trimmed_token}__ $fileline" >> "$metadata_file"
+                            echo "$fileline" >> "$raw_file"
+                        done < "$trimmed_token"
+                    else
+                        echo "__SRC:INPUT__ $trimmed_token" >> "$metadata_file"
+                        echo "$trimmed_token" >> "$raw_file"
+                    fi
+                done
+                if $anyerrors; then
+                    continue  # Re-prompt
+                fi
+                checkfile="$metadata_file"
+                checkinvalidips
+                if [[ "$allvalid" = 1 ]]; then
+                    ips="$raw_file"
+                    t_opt="$ips"
+                    break
+                fi
             else
-                if [[ "$nostrikes" == "-"* ]]; then
-                    echo -e "\e[31m [X] Error: File names starting with '-' may cause issues with commands \e[0m" >&2
-                elif [[ "$nostrikes" == *" "* ]]; then
-                    echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed in file names \e[0m" >&2
+                # Possibly a single file with IP pattern or a non-existent file
+                if [[ ! -f "$user_input" ]]; then
+                    echo -e "\e[31m [X] Error: $user_input is not a file or a valid IP list \e[0m" >&2
+                elif [ ! -s "$user_input" ]; then
+                    echo -e "\e[31m [X] Error: $user_input is empty \e[0m" >&2
                 else
-                    checkfile="$nostrikes"
-                    checkinvalidips # Check targets file for invalid entries
+                    # It's an existing file but might also look like an IP pattern or commas treat it as file anyway
+                    ips="$user_input"
+                    ips_log="$ips"
+					checkfile="$ips"
+                    checkinvalidips
                     if [[ "$allvalid" = 1 ]]; then
-                        x_opt="$nostrikes"
+                        t_opt="$ips"
                         break
                     fi
                 fi
             fi
         done
     fi
+    ################################################################
+    # 5) final block
+    ################################################################
+	t_opt="$(realpath "$ips")"
+    ips="$(realpath "$ips")"
+	checkfile="$ips"
+	geniplist "$ips" > "$targets_file" &
+	GEN_PID=$!
+	status_msg="     Generating temporary list of single IP addresses for targets..."
+	statusgeniplist "$GEN_PID"
+	wait "$GEN_PID"
+    ips="$targets_file"
+    t_opt="$targets_file"
+}
 
+function excludes { # Sets the excludes file
+    # Global nullexcludes path
+    mkdir -p /var/lib/zeroe
+    touch /var/lib/zeroe/nullexcludes.z0e
+    nullexcludes="/var/lib/zeroe/nullexcludes.z0e"
+
+    # Session-based exclude file
+    if [[ "$session_flag" = true && -n "$session" ]]; then
+        session_dir="/var/lib/zeroe/sessions/$session"
+        excludes_file="$session_dir/excludes-single-ips.z0e"
+    else
+        excludes_file="/var/lib/zeroe/excludes-single-ips.z0e"
+    fi
+
+    # 1) If x_opt is empty and defaults=true => use global nullexcludes
+    if [[ -z "$x_opt" && "$defaults" = true ]]; then
+        nostrikes="$nullexcludes"
+    # 2) If x_opt is not empty, check if it's a single existing file or comma/IP list
+    elif [ -n "$x_opt" ]; then
+        # If it’s a single file, etc. => same logic as the updated -x option
+        if [ -f "$x_opt" ] && [ -s "$x_opt" ] \
+           && ! [[ "$x_opt" =~ [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ ]] \
+           && [[ "$x_opt" != *","* ]]
+        then
+            nostrikes="$x_opt"
+            checkfile="$nostrikes"
+            checkinvalidips
+        elif [[ ( ! -f "$nostrikes" && "$nostrikes" =~ [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ ) \
+		      || "$nostrikes" == *","* ]]
+		then
+            IFS=',' read -ra token_array <<< "$x_opt"
+            metadata_file=$(mktemp /tmp/excludes_single_ips.metadata.XXXXXX)
+            raw_file=$(mktemp /tmp/excludes_single_ips.raw.XXXXXX)
+            anyerrors=false
+            for token in "${token_array[@]}"; do
+                trimmed_ip="$(echo "$token" | xargs)"
+                if [ -f "$trimmed_ip" ]; then
+                    if [ ! -s "$trimmed_ip" ]; then
+                        echo -e "\e[31m [X] Error: '$trimmed_ip' is empty \e[0m" >&2
+                        anyerrors=true
+                        break
+                    fi
+                    while IFS= read -r line; do
+                        echo "__SRC:FILE:${trimmed_ip}__ $line" >> "$metadata_file"
+                        echo "$line" >> "$raw_file"
+                    done < "$trimmed_ip"
+                else
+                    echo "__SRC:INPUT__ $trimmed_ip" >> "$metadata_file"
+                    echo "$trimmed_ip" >> "$raw_file"
+                fi
+            done
+            if $anyerrors; then
+                exit 1
+            fi
+            checkfile="$metadata_file"
+            checkinvalidips
+            if [[ "$allvalid" -eq 1 ]]; then
+                nostrikes="$raw_file"
+            else
+                exit 1
+            fi
+        else
+            # Otherwise error out or handle the final file
+            if [[ "$x_opt" == "-"* ]]; then
+                echo -e "\e[31m [X] Error: File names starting with '-' may cause issues \e[0m" >&2
+                exit 1
+            elif [[ "$x_opt" == *" "* ]]; then
+                echo -e "\e[31m [X] Error: Whitespace not allowed in file names \e[0m" >&2
+                exit 1
+            elif [ ! -s "$x_opt" ] && [ "$x_opt" != "/var/lib/zeroe/nullexcludes.z0e" ]; then
+                echo -e "\e[31m [X] Error: '$x_opt' is empty or doesn't exist \e[0m" >&2
+                exit 1
+            fi
+            nostrikes="$x_opt"
+            checkfile="$nostrikes"
+            checkinvalidips
+        fi
+    # 3) If x_opt is still empty => prompt user
+    else
+        echo "[?] Enter the excluded IP addresses and/or filename(s) -- if none, press <enter>: "
+        excludesprompt=true
+        while true; do
+            read -e -p " [>] " nostrikes
+            if [[ -z "$nostrikes" ]]; then
+                nostrikes="$nullexcludes"
+                break
+            elif [ -f "$nostrikes" ] && [ -s "$nostrikes" ] \
+                 && ! [[ "$nostrikes" =~ [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ ]] \
+                 && [[ "$nostrikes" != *","* ]]
+            then
+                # Single existing file
+				exc_log="$nostrikes"
+                checkfile="$nostrikes"
+                checkinvalidips
+                if [[ "$allvalid" = 1 ]]; then
+                    x_opt="$nostrikes"
+                    excludesprompt=false
+                    break
+                fi
+            elif [[ ( ! -f "$nostrikes" && "$nostrikes" =~ [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ ) \
+			      || "$nostrikes" == *","* ]]
+			then
+				exc_log="$nostrikes"
+                # Comma or IP => two-file approach
+                IFS=',' read -ra token_array <<< "$nostrikes"
+                metadata_file=$(mktemp /tmp/excludes_single_ips.metadata.XXXXXX)
+                raw_file=$(mktemp /tmp/excludes_single_ips.raw.XXXXXX)
+                anyerrors=false
+                for token in "${token_array[@]}"; do
+                    trimmed_ip="$(echo "$token" | xargs)"
+                    if [ -f "$trimmed_ip" ]; then
+                        if [ ! -s "$trimmed_ip" ]; then
+                            echo -e "\e[31m [X] Error: '$trimmed_ip' is empty \e[0m" >&2
+                            anyerrors=true
+                            break
+                        fi
+                        while IFS= read -r line; do
+                            echo "__SRC:FILE:${trimmed_ip}__ $line" >> "$metadata_file"
+                            echo "$line" >> "$raw_file"
+                        done < "$trimmed_ip"
+                    else
+                        echo "__SRC:INPUT__ $trimmed_ip" >> "$metadata_file"
+                        echo "$trimmed_ip" >> "$raw_file"
+                    fi
+                done
+                if $anyerrors; then
+                    continue
+                fi
+                checkfile="$metadata_file"
+                checkinvalidips
+                if [[ "$allvalid" = 1 ]]; then
+                    nostrikes="$raw_file"
+					x_opt="$raw_file"
+                    excludesprompt=false
+                    break
+                fi
+            else
+                # Possibly a single file or error out
+                if [[ ! -f "$nostrikes" ]]; then
+                    echo -e "\e[31m [X] Error: You must pass an existing file(s) and/or comma-separated IP list \e[0m" >&2
+                elif [ ! -s "$nostrikes" ]; then
+                    echo -e "\e[31m [X] Error: '$nostrikes' is empty \e[0m" >&2
+                else
+                    # It's a file
+					exc_log="$nostrikes"
+                    checkfile="$nostrikes"
+                    checkinvalidips
+                    if [[ "$allvalid" = 1 ]]; then
+                        x_opt="$nostrikes"
+                        excludesprompt=false
+                        break
+                    fi
+                fi
+            fi
+        done
+    fi
+    # 4) Final block: if nostrikes != nullexcludes, we run geniplist
     if [[ "$nostrikes" != "$nullexcludes" ]]; then
         x_opt="$(realpath "$nostrikes")"
         nostrikes="$(realpath "$nostrikes")"
-        echo -ne "     Generating temporary list of single IP addresses for excludes..."
-        geniplist "$nostrikes" > "$excludes_file"
-        echo -e "\r     Generating temporary list of single IP addresses for excludes... Done"
+		checkfile="$nostrikes"
+		geniplist "$nostrikes" > "$excludes_file" &
+		GEN_PID=$!
+        status_msg="     Generating temporary list of single IP addresses for excludes..."
+		statusgeniplist "$GEN_PID"
+		wait "$GEN_PID"
         nostrikes="$excludes_file"
         x_opt="$excludes_file"
     fi
@@ -317,19 +568,21 @@ function enableudp { #Enables UDP scans
 	elif [ "$u_opt" = true ]; then
 		udp="n"
 	else
-		echo "[?] Enable UDP scans? <y/n>"
+		echo "[?] <E>nable or <d>isable UDP scans:"
 		while true; do
 			read -e -p " [>] " udp
-				if [ "$udp" = "y" ] || [ "$udp" = "yes" ] || [ "$udp" = "n" ] || [ "$udp" = "no" ]; then
+				if [ "$udp" = "e" ] || [ "$udp" = "E" ] || [ "$udp" = "enable" ] || [ "$udp" = "Enable" ] || [ "$udp" = "d" ] || [ "$udp" = "D" ] || [ "$udp" = "disable" ] || [ "$udp" = "Disable" ]; then
 					break
 				else
-					echo -e "\e[31m [X] Error: You must enter 'y', 'yes', 'n', or 'no' \e[0m" >&2
+					echo -e "\e[31m [X] Error: You must enter 'e', 'enable', 'd', or 'disable' \e[0m" >&2
 				fi
 		done
-		if [ "$udp" = "y" ] || [ "$udp" = "yes" ]; then
+		if [ "$udp" = "e" ] || [ "$udp" = "E" ] || [ "$udp" = "enable" ] || [ "$udp" = "Enable" ]; then
+			udp="y"
 			U_opt=true
 			u_opt=false
-		elif [ "$udp" = "n" ] || [ "$udp" = "no" ]; then
+		elif [ "$udp" = "d" ] || [ "$udp" = "D" ] || [ "$udp" = "disable" ] || [ "$udp" = "Disable" ]; then
+			udp="n"
 			U_opt=false
 			u_opt=true
 		fi
@@ -402,52 +655,101 @@ function singleportstorange { #Converts individual sequential port numbers into 
 }
 
 function checkinvalidips { #Checks targets file for invalid entries
-	dos2unix -q "$checkfile" #Converts target files created on Windows to unix format to remove hidden characters
-	sed -i '/^[ \t]*$/d' "$checkfile" #Removes blank lines and lines that only contain spaces
-	sed -i 's/^[[:space:]]*//; s/[[:space:]]*$//' "$checkfile" #Removes whitespace from the beginning and end of each line
+    dos2unix -q "$checkfile"
+    sed -i '/^[ \t]*$/d' "$checkfile"  # remove blank lines
+    sed -i 's/^[[:space:]]*//; s/[[:space:]]*$//' "$checkfile" # remove leading/trailing whitespace
 
-	#Regex pattern to match single IPv4 addresses
-	ip_single='^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$'
-	#Regex pattern to match full IPv4 address ranges
-	ip_range_full='^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])-(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$'
-	#Regex pattern to match IPv4 CIDR notations
-	ip_cidr='^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\/([0-9]|[1-2][0-9]|3[0-2])$'
-	#Regex pattern to match IPv4 address ranges that cannot be parsed by masscan
-	ip_range_anyoct='^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)-(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$|^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)-(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$|^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)-(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$|^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])-(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
+    #Regex pattern to match single IPv4 addresses, ranges, etc.
+    ip_single='^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$'
+    ip_range_full='^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])-(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$'
+    ip_cidr='^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\/([0-9]|[1-2][0-9]|3[0-2])$'
+    ip_range_anyoct='^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)-(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.[0-9.]+$|^...LONGREGEX...'
 
-	#Read file line by line, checking for invalid entries
-	anyinvalid=0
-	while IFS= read -r line || [[ -n "$line" ]]; do #Condition after the || ensures last line of file is checked even if it's not a newline
-		if [[ "$line" =~ $ip_single ]]  || [[ $line =~ $ip_cidr ]] || [[ $line =~ $ip_range_full ]]; then
-			:
-		elif [[ "$line" =~ $ip_range_anyoct ]]; then
-			#echo -e "\e[31m [X] Error: $ips contains an entry that masscan cannot parse -- $line \e[0m"
-			echo -e "\e[31m [X] Error: $checkfile contains an improperly formatted range -- $line \e[0m" >&2
-			echo -e "\e[31m            IP address ranges must be in the format x.x.x.x-y.y.y.y \e[0m" >&2
-			anyinvalid=1
-		elif [ ! -s "$checkfile" ];then 
-			echo -e "\e[31m [X] Error: $checkfile is empty \e[0m" >&2
-		else
-			echo -e "\e[31m [X] Error: $checkfile contains an invalid entry -- $line \e[0m" >&2
-			anyinvalid=1
-		fi
-	done <"$checkfile"
+    anyinvalid=0
 
-	if [ "$anyinvalid" -ne 0 ]; then
-		allvalid=0
-		if [[ -z "$t_opt" && "$defaults" = true ]] || [ -n "$t_opt" ]  || [ -n "$x_opt" ] || [[ "$countopt" == "y" ]] || [[ "$geniplistopt" == "y" ]]; then
-			exit 1
-		fi
-	else
-  		allvalid=1
-	fi
+    # Pattern to detect the source prefix:
+    #   __SRC:FILE:(somefile)__ actual_line
+    #   __SRC:INPUT__ actual_line
+    prefix_regex='^__SRC:(FILE|INPUT)(:([^[:space:]]+))?__[[:space:]]+(.*)$'
+    # Explanation:
+    #  ^__SRC:(FILE|INPUT) => "FILE" or "INPUT"
+    #  (:([^[:space:]]+))? => optionally captures the filename after a colon (no spaces)
+    #  __ => literal double underscore
+    #  [[:space:]]+ => space(s) after the prefix
+    #  (.*)$ => the rest is the actual IP/range line
+
+    while IFS= read -r rawline || [[ -n "$rawline" ]]; do
+        # 1) Parse out the source
+        srcType=""
+        fileSource=""
+        line="$rawline"
+
+        if [[ "$rawline" =~ $prefix_regex ]]; then
+            srcType="${BASH_REMATCH[1]}"  # "FILE" or "INPUT"
+            fileSource="${BASH_REMATCH[3]}"  # e.g. "test-ip.txt"
+            line="${BASH_REMATCH[4]}"       # the actual IP/range line
+        else
+            # If no prefix, fallback to older logic. Possibly from a single-file scenario.
+            srcType="FILE"
+            fileSource="$checkfile"
+            # 'line' is already set to "$rawline"
+        fi
+
+        # 2) Decide whether we consider it "entered IPs" or "file lines"
+        if [[ "$srcType" == "INPUT" ]]; then
+            enteredips=true
+        else
+            enteredips=false
+        fi
+
+        # 3) If the file ended up empty after removing blank lines
+        if [ ! -s "$checkfile" ]; then
+            echo -e "\e[31m [X] Error: $checkfile is empty \e[0m" >&2
+        fi
+
+        # 4) Check the line against the IP patterns
+        if [[ "$line" =~ $ip_single ]] || [[ "$line" =~ $ip_cidr ]] || [[ "$line" =~ $ip_range_full ]]; then
+            # It's valid => do nothing
+            :
+        elif [[ "$line" =~ $ip_range_anyoct ]]; then
+            # It's an improperly formatted range that masscan cannot parse
+            if [[ "$enteredips" = true ]]; then
+                echo -e "\e[31m [X] Error: $line is an improperly formatted range \e[0m" >&2
+                echo -e "\e[31m            IP address ranges must be in the format x.x.x.x-y.y.y.y \e[0m" >&2
+            else
+                echo -e "\e[31m [X] Error: $fileSource contains an improperly formatted range -- $line \e[0m" >&2
+                echo -e "\e[31m            IP address ranges must be in the format x.x.x.x-y.y.y.y \e[0m" >&2
+            fi
+            anyinvalid=1
+        else
+            # Not a recognized IP/range/CIDR
+            if [[ "$enteredips" = true ]]; then
+                echo -e "\e[31m [X] Error: $line is an invalid IP address \e[0m" >&2
+                anyinvalid=1
+            else
+                echo -e "\e[31m [X] Error: $fileSource contains an invalid entry -- $line \e[0m" >&2
+                anyinvalid=1
+            fi
+        fi
+    done < "$checkfile"
+
+    if [ "$anyinvalid" -ne 0 ]; then
+        allvalid=0
+        enteredips=false
+        if [[ -z "$t_opt" && "$defaults" = true ]] || { [ -n "$t_opt" ] && [ "$excludesprompt" != true ]; } || [ -n "$x_opt" ] || [[ "$countopt" == "y" ]] || [[ "$geniplistopt" == true ]]; then
+            exit 1
+        fi
+    else
+        allvalid=1
+        enteredips=false
+    fi
 }
 
 function stageinit { # The checkpoint system
 	mkdir -p /var/lib/zeroe
 
 	function checkinvalidstage { # Defines the function to check for an invalid stage
-		if [[ "$stage" = "script-start" || "$stage" = "discovery-ports" || "$stage" = "discovery-alives" || "$stage" = "discovery-udp" || "$stage" = "discovery-lists" || "$stage" = "services-tcp" || "$stage" = "services-udp" || "$stage" = "methodology" ]]; then
+		if [[ "$stage" = "script-start" || "$stage" = "discovery-ports" || "$stage" = "discovery-alives" || "$stage" = "discovery-udp" || "$stage" = "discovery-lists" || "$stage" = "services-tcp" || "$stage" = "services-udp" ]]; then
 			return 0
 		else	
 			echo -e "\e[31m [X] Error: Invalid stage '$stage' -- check help or README for valid stages \e[0m" >&2
@@ -457,11 +759,11 @@ function stageinit { # The checkpoint system
 
 	# Determine the appropriate stage file location
 	if [[ "$session_flag" = true && -n "$session" ]]; then
-		stage_file="/var/lib/zeroe/sessions/$session/stage.zre"
-		initdir_file="/var/lib/zeroe/sessions/$session/initdir.zre"
+		stage_file="/var/lib/zeroe/sessions/$session/stage.z0e"
+		initdir_file="/var/lib/zeroe/sessions/$session/initdir.z0e"
 	else
-		stage_file="/var/lib/zeroe/stage.zre"
-		initdir_file="/var/lib/zeroe/initdir.zre"
+		stage_file="/var/lib/zeroe/stage.z0e"
+		initdir_file="/var/lib/zeroe/initdir.z0e"
 	fi
 
 	if [[ "$s_opt" = false && "$S_opt" = "disabled" && "$defaults" = true ]]; then # If only using --defaults option
@@ -474,10 +776,10 @@ function stageinit { # The checkpoint system
 		echo "$(pwd)" > "$initdir_file"
 		stage_cont=true
 	elif [[ ! -f "$stage_file" && "$S_opt" = "disabled" ]] || [[ -f "$stage_file" && "$(cat "$stage_file")" = "script-start" ]]; then # If stage file does not exist and stage option is disabled OR saved stage is script-start
-		echo "[?] Start a new scan <y>, or start from a specific stage?																"
+		echo "[?] Start a <n>ew scan, or enter a specific stage:"
 		while true; do
 			read -e -p " [>] " stage
-			if [[ "$stage" = "y" ]]; then
+			if [[ "$stage" = "n" || "$stage" = "new" ]]; then
 				stage="script-start"
 				echo "$(pwd)" > "$initdir_file"
 				stage_cont=true
@@ -497,10 +799,10 @@ function stageinit { # The checkpoint system
 		resume="y"
 	elif [[ ! -f "$stage_file" ]] && [[ -z "$S_opt" ]]; then # If stage file does not exist and resume option is enabled
 		echo -e "\e[31m [X] Error: No saved stage exists \e[0m" >&2
-		echo "[?] Start a new scan <y>, or start from a specific stage?																"
+		echo "[?] Start a <n>ew scan, or enter a specific stage:"
 		while true; do
 			read -e -p " [>] " stage
-				if [[ "$stage" = "y" ]]; then
+				if [[ "$stage" = "n" || "$stage" = "new" ]]; then
 					stage="script-start"
 					echo "$(pwd)" > "$initdir_file"
 					stage_cont=true
@@ -516,17 +818,17 @@ function stageinit { # The checkpoint system
 				fi
 		done
 	elif [[ -f "$stage_file" && "$S_opt" = "disabled" && "$(cat "$stage_file")" != "script-start" ]]; then # If stage file exists, stage option is disabled, and saved stage is not script-start
-		echo "[?] Resume from '$(cat "$stage_file")' <y/n>, or start from a specific stage?																"
+		echo "[?] <R>esume from '$(cat "$stage_file")', start a <n>ew scan, or specify stage:"
 		while true; do
 			read -e -p " [>] " stage
-			if [[ "$stage" != "script-start" && "$stage" != "discovery-ports" && "$stage" != "discovery-alives" && "$stage" != "discovery-udp" && "$stage" != "discovery-lists" && "$stage" != "services-tcp" && "$stage" != "services-udp"  && "$stage" != "methodology" && "$stage" != "y" && "$stage" != "n" ]]; then
+			if [[ "$stage" != "script-start" && "$stage" != "discovery-ports" && "$stage" != "discovery-alives" && "$stage" != "discovery-udp" && "$stage" != "discovery-lists" && "$stage" != "services-tcp" && "$stage" != "services-udp" && "$stage" != "R" && "$stage" != "r"  && "$stage" != "Resume" && "$stage" != "resume"  && "$stage" != "n" && "$stage" != "new" ]]; then
 				echo -e "\e[31m [X] Error: Invalid stage '$stage' -- check help or README for valid stages \e[0m" >&2
-			elif [[ "$stage" = "n" ]]; then
+			elif [[ "$stage" = "n" || "$stage" = "new" ]]; then
 				stage="script-start"
 				echo "$(pwd)" > "$initdir_file"
 				stage_cont=true
 				break
-			elif [[ "$stage" = "y" ]]; then
+			elif [[ "$stage" = "R" || "$stage" = "r" || "$stage" = "Resume" || "$stage" = "resume" ]]; then
 				resume="y"
 				stage=$(cat "$stage_file")
 				break
@@ -543,7 +845,7 @@ function stageinit { # The checkpoint system
 			fi
 		done
 	elif [[ -n "$S_opt" ]]; then # Start at the specified stage
-		if [[ "$S_opt" = "script-start" || "$S_opt" = "discovery-ports" || "$S_opt" = "discovery-alives" || "$S_opt" = "discovery-udp" || "$S_opt" = "discovery-lists" || "$S_opt" = "services-tcp" || "$S_opt" = "services-udp"  || "$S_opt" = "methodology" ]]; then
+		if [[ "$S_opt" = "script-start" || "$S_opt" = "discovery-ports" || "$S_opt" = "discovery-alives" || "$S_opt" = "discovery-udp" || "$S_opt" = "discovery-lists" || "$S_opt" = "services-tcp" || "$S_opt" = "services-udp" ]]; then
 			stage="$S_opt"
 			echo "$(pwd)" > "$initdir_file"
 			if [[ "$only_flag" == true && "$S_opt" == "discovery-udp" ]]; then
@@ -603,9 +905,6 @@ function stagefilescheck { #Checks if required files are present for the specifi
     		"services-udp")
     			checkstagefiles "$nostrikes" "$filepath/$typevar-alives.txt" "$filepath/logs/misc-files/$typevar-portsfornmap-udp.txt"
     			;;
-    		#"methodology")
-    		#	checkstagefiles "$ips" "$filepath/logs/misc-files/$typevar-discoscan-masscan-tcp.txt" "$filepath/$typevar-tcp-servicescan-results.nmap" "$filepath/$typevar-alives.txt"
-    		#	;;
     	esac
   	elif [[ "$i_opt" = true || "$type" = "I" || "$type" = "i" || "$type" = "internal" || "$type" = "Internal" || "$type" = "Int" || "$type" = "int" ]]; then
     	case "$stage" in
@@ -645,25 +944,16 @@ function stagefilescheck { #Checks if required files are present for the specifi
     		"services-udp")
     			checkstagefiles "$nostrikes" "$filepath/$typevar-alives.txt" "$filepath/logs/misc-files/$typevar-portsfornmap-udp.txt"
     			;;
-    		#"methodology")
-    		#	checkstagefiles "$ips" "$filepath/logs/misc-files/$typevar-discoresults.txt" "$filepath/logs/misc-files/$typevar-discoscan-masscan-tcp.txt" "$filepath/$typevar-tcp-servicescan-results.nmap" "$filepath/$typevar-alives.txt"
-    		#	;;
     	esac
   	fi
 	if [ ${#missing_files[@]} -ne 0 ]; then
-        #echo -e "\e[31m [X] Error: The following required files are missing for the '$stage' stage:"
-        #for file in "${missing_files[@]}"; do
-        #    echo -e "  - $file"
-        #done
-		if [[ -f /var/lib/zeroe/stage.zre ]]; then
-        	echo -e "\e[31m [X] Error: Required ZrE files for $stage stage do not exist" >&2
-			#echo -e " 		     Required files: ${missing_files[@]}" >&2
-			echo -e "            Resume ZrE from the saved $(cat /var/lib/zeroe/stage.zre) stage, run preceding stage, or restart ZrE \e[0m" >&2
+		if [[ -f /var/lib/zeroe/stage.z0e ]]; then
+        	echo -e "\e[31m [X] Error: Required z0e files for $stage stage do not exist" >&2
+			echo -e "            Resume z0e from the saved $(cat /var/lib/zeroe/stage.z0e) stage, run preceding stage, or restart z0e \e[0m" >&2
         	exit 1
 		else
-			echo -e "\e[31m [X] Error: Required ZrE files for $stage stage do not exist" >&2
-			#echo -e " 		     Required files: ${missing_files[@]}" >&2
-			echo -e "            Correct output directory if repeating stage, run preceding stage, or restart ZrE \e[0m" >&2
+			echo -e "\e[31m [X] Error: Required z0e files for $stage stage do not exist" >&2
+			echo -e "            Correct output directory if repeating stage, run preceding stage, or restart z0e \e[0m" >&2
         	exit 1
 		fi
     fi
@@ -1023,6 +1313,29 @@ function statusmasscan {
 		kill $status_pid 2>/dev/null #Kill the status process when done
 }
 
+function statusgeniplist {
+	if [ "$use_stderr" = true ]; then
+	    status_target="/dev/stderr"
+	else
+	    status_target="/dev/stdout"
+	fi
+	local pid=$1
+    local delay=0.2
+    local chars='.oO0@'
+    while kill -0 "$pid" 2>/dev/null; do
+        for (( i=0; i<${#chars}; i++ )); do
+            # \r returns to the beginning of the line
+            printf "\r%s %s" "$status_msg" "${chars:$i:1}" > "$status_target"
+            sleep "$delay"
+        done
+    done
+    # Print the final message once done
+	#if [ "$geniplistopt" != true ] && [ "$countopt" != true ]; then
+    	printf "\r%s Done\n" "$status_msg" > "$status_target"
+		use_stderr=false
+	#fi
+}
+
 function errorcheck { #Checks for errors in command output
 	errorlog="/logs/$typevar-errors.log"
 
@@ -1035,7 +1348,7 @@ function errorcheck { #Checks for errors in command output
 	fi
 }
 
-function whenstopped {
+function whenkilled {
 	#Kill the periodic status process if it's running
     if [[ -n $status_pid ]] && kill -0 $status_pid >/dev/null 2>&1; then       
 		kill $status_pid
@@ -1044,9 +1357,10 @@ function whenstopped {
 	if [[ "$firewallset" = true ]]; then
 		removefirewallrule
 	fi
+	printf "\r\e[K"
 	status_msg="[!] Zero-E stopped -- saving progress..."  
 	echo -e "\n\e[33m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-	ntfy "$status_msg"	
+	ntfy "$status_msg"
 	sleep 3
 	sed -i -e 's/\x1b\[[0-9;]*m//g' -e 's/\x1b\[A//g' -e 's/\x1b\[K//g' "$filepath/logs/$typevar-timestamps.log" #cleans up timestamps log
 	sed -i '/nocapture = servername/d' paused.conf 2>/dev/null #Removes line that breaks masscan --resume function
@@ -1056,16 +1370,16 @@ function whenstopped {
 	exit 1
 }
 
-function zrecleanup {
-    sed -i 's/\x1b\[[0-9;]*m//g' "$filepath/logs/$typevar-timestamps.log" # Cleans up timestamps log
+function z0ecleanup {
+    sed -i 's/\x1b\[[0-9;?]*[A-Za-z]//g' "$filepath/logs/$typevar-timestamps.log" # Cleans up timestamps log
     
     if [[ "$session_flag" = true && -n "$session" ]]; then
         # Remove only session-specific files
         rm -rf "/var/lib/zeroe/sessions/$session" 2>/dev/null
     else
         # No active session; remove only global files, keep session data
-        rm -rf /var/lib/zeroe/stage.zre /var/lib/zeroe/vars.zre /var/lib/zeroe/initdir.zre \
-               /var/lib/zeroe/excludes-single-ips.zre /var/lib/zeroe/targets-single-ips.zre 2>/dev/null
+        rm -rf /var/lib/zeroe/stage.z0e /var/lib/zeroe/vars.z0e /var/lib/zeroe/initdir.z0e \
+               /var/lib/zeroe/excludes-single-ips.z0e /var/lib/zeroe/targets-single-ips.z0e 2>/dev/null
     fi
 
     rm paused.conf 2>/dev/null
@@ -1087,7 +1401,7 @@ function checktools {
     	if [ ${#missing[@]} -gt 0 ]; then
       		echo -e "\e[31m[X] Error: The following required tools are not installed: ${missing[*]}\e[0m"
       		# Ask if user wants to install
-      		read -p "Would you like to install them now using Homebrew? <y/n> " resp
+      		read -p "Install them now using Homebrew? <y/n> " resp
       		if [[ "$resp" =~ ^[Yy]$ ]]; then
         		# Install missing tools
         		for tool in "${missing[@]}"; do
@@ -1114,7 +1428,7 @@ function checktools {
     	if [ ${#missing[@]} -gt 0 ]; then
       		echo -e "\e[31m[X] Error: The following required tools are not installed: ${missing[*]}\e[0m"
       		# Ask if user wants to install
-      		read -p "Would you like to install them now using apt? <y/n> " resp
+      		read -p "Install them now using apt? <y/n> " resp
       		if [[ "$resp" =~ ^[Yy]$ ]]; then
         		# Update apt cache and install missing tools
         		sudo apt update
@@ -1131,43 +1445,43 @@ function checktools {
   	fi
 }
 
-function zrengineer { #Enables users to customize commands
-	echo -e "\e[33m [!] ZrE ngineer mode is experimental [!]"
+function z0engineer { #Enables users to customize commands
+	echo -e "\e[33m [!] z0e ngineer mode is experimental [!]"
 	echo -e " [!] It tries to prevent command options that may cause errors"
 	echo -e " [!] But given the large number of possible options, it does not catch everything"
-	echo -e " [!] If ZrE errors, it is likely due to input passed in these commands \e[0m"
+	echo -e " [!] If z0e errors, it is likely due to input passed in these commands \e[0m"
 	#create prompts for all necessary commands depending on if internal or external, saying not to include targets, excludes, output, etc
 	if [[ "$e_opt" = true || "$type" = "E" || "$type" = "e" || "$type" = "external" || "$type" = "External" || "$type" = "Ext" || "$type" = "ext" ]]; then
 		#while true; do
 		#	echo "[?] Provide nmap alives discovery command:"
-		#	read -e -p " [>] " zreng_ext_alives
-		#	if [[ "$zreng_ext_alives" =~ (-|--excludefile|-iL|>>|>|&|-o\*) ]] || [[ "$zreng_ports_opts" == *"- "* ]] || { [[ "$zreng_ports_opts" =~ (-)$ ]] && [[ ! "$zreng_ports_opts" =~ "-p-" ]]; }; then
+		#	read -e -p " [>] " z0eng_ext_alives
+		#	if [[ "$z0eng_ext_alives" =~ (-|--excludefile|-iL|>>|>|&|-o\*) ]] || [[ "$z0eng_ports_opts" == *"- "* ]] || { [[ "$z0eng_ports_opts" =~ (-)$ ]] && [[ ! "$z0eng_ports_opts" =~ "-p-" ]]; }; then
 		#		echo -e "\e[31m [X] Error: The command cannot contain [-|--excludefile|-iL|>>|>|&] -- this will likely cause errors \e[0m"
-		#	elif [[ "$zreng_ext_alives" != *"nmap"* ]]; then
+		#	elif [[ "$z0eng_ext_alives" != *"nmap"* ]]; then
 		#		echo -e "\e[31m [X] Error: Nmap must be used for alives discovery or errors will occur \e[0m"
-		#	elif [[ -z "$zreng_ext_alives" ]]; then #leave blank to use default
+		#	elif [[ -z "$z0eng_ext_alives" ]]; then #leave blank to use default
 		#		ngineer_default=true
 		#		break
 		#	else
-		#		echo "$zreng_ext_alives"
+		#		echo "$z0eng_ext_alives"
 		#		break
 		#	fi
 		#done
 		echo "[?] Provide custom options for the masscan open port discovery scan command:"
-		echo "    Leave blank to use the ZrE default"
+		echo "    Leave blank to use the z0e default"
 		echo "    Hardcoded: <--open-only> <--excludefile (null if not specified)> <--include-file> <-oG>"
 		while true; do
-			read -e -p " [>] " zreng_ports_opts
-			if [[ -z "$zreng_ports_opts" ]]; then #leave blank to use default
+			read -e -p " [>] " z0eng_ports_opts
+			if [[ -z "$z0eng_ports_opts" ]]; then #leave blank to use default
 				ngineer_ports_default=true
 				break
-			elif [[ "$zreng_ports_opts" =~ (-sV|--excludefile|--include-file|>>|>|&|-o\*) ]] || [[ "$zreng_ports_opts" == "- " ]] || { [[ "$zreng_ports_opts" =~ (-)$ ]] && [[ ! "$zreng_ports_opts" =~ "-p-" ]]; }; then
+			elif [[ "$z0eng_ports_opts" =~ (-sV|--excludefile|--include-file|>>|>|&|-o\*) ]] || [[ "$z0eng_ports_opts" == "- " ]] || { [[ "$z0eng_ports_opts" =~ (-)$ ]] && [[ ! "$z0eng_ports_opts" =~ "-p-" ]]; }; then
 				echo -e "\e[31m [X] Error: The command cannot contain [ --excludefile | --include-file | >> | > | & | - | -o* ] -- this will likely cause errors\e[0m" >&2
-			elif [[ "$zreng_ports_opts" == *"masscan"* ]]; then
+			elif [[ "$z0eng_ports_opts" == *"masscan"* ]]; then
 				echo -e "\e[31m [X] Error: Only provide the desired options \e[0m" >&2
-			elif [[ "$zreng_ports_opts" == *"nmap"* ]]; then
+			elif [[ "$z0eng_ports_opts" == *"nmap"* ]]; then
 				echo -e "\e[31m [X] Error: Currently, Nmap cannot be used here \e[0m" >&2
-			elif ! [[ "$zreng_ports_opts" =~ (-p[[:space:]]*([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])(-([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?|--top-ports[[:space:]]+([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))|-p- ]]; then
+			elif ! [[ "$z0eng_ports_opts" =~ (-p[[:space:]]*([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])(-([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?|--top-ports[[:space:]]+([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))|-p- ]]; then
 				echo -e "\e[31m [X] Error: At minimum, you must specify ports with -p or --top-ports with proper syntax \e[0m" >&2
 			else
 				break
@@ -1176,20 +1490,20 @@ function zrengineer { #Enables users to customize commands
 
 		if [[ "$U_opt" = true || "$udp" = "y" || "$udp" = "yes" ]]; then
 			echo "[?] Provide custom options for the Nmap UDP discovery scan command:"
-			echo "    Leave blank to use the ZrE default"
+			echo "    Leave blank to use the z0e default"
 			echo "    Hardcoded: <-sU> <--open> <--excludefile (null if not specified)> <-iL> <-oG>"
 			while true; do
-				read -e -p " [>] " zreng_udpa_opts
-				if [[ -z "$zreng_udpa_opts" ]]; then #leave blank to use default
+				read -e -p " [>] " z0eng_udpa_opts
+				if [[ -z "$z0eng_udpa_opts" ]]; then #leave blank to use default
 					ngineer_udpa_default=true
 					break
-				elif [[ "$zreng_udpa_opts" =~ (-sV|--excludefile|-iL|>>|>|&|-o\*) ]] || [[ "$zreng_udpa_opts" == *"- "* ]] || { [[ "$zreng_udpa_opts" =~ (-)$ ]] && [[ ! "$zreng_udpa_opts" =~ "-p-" ]]; }; then
+				elif [[ "$z0eng_udpa_opts" =~ (-sV|--excludefile|-iL|>>|>|&|-o\*) ]] || [[ "$z0eng_udpa_opts" == *"- "* ]] || { [[ "$z0eng_udpa_opts" =~ (-)$ ]] && [[ ! "$z0eng_udpa_opts" =~ "-p-" ]]; }; then
 					echo -e "\e[31m [X] Error: The command cannot contain [ -sV | --excludefile | -iL | >> | > | & | - | -o* ] -- this will likely cause errors \e[0m" >&2
-				elif [[ "$zreng_udpa_opts" == *"nmap"* ]]; then
+				elif [[ "$z0eng_udpa_opts" == *"nmap"* ]]; then
 					echo -e "\e[31m [X] Error: Only provide the desired options \e[0m" >&2
-				elif [[ "$zreng_ports_opts" == *"masscan"* ]]; then
+				elif [[ "$z0eng_ports_opts" == *"masscan"* ]]; then
 					echo -e "\e[31m [X] Error: Currently, masscan cannot be used here \e[0m" >&2
-				elif ! [[ "$zreng_udpa_opts" =~ (-p[[:space:]]*([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])(-([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?|--top-ports[[:space:]]+([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))|-p- ]]; then
+				elif ! [[ "$z0eng_udpa_opts" =~ (-p[[:space:]]*([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])(-([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?|--top-ports[[:space:]]+([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))|-p- ]]; then
 					echo -e "\e[31m [X] Error: At minimum, you must specify ports with -p or --top-ports with proper syntax \e[0m" >&2
 				else
 					break
@@ -1198,21 +1512,21 @@ function zrengineer { #Enables users to customize commands
 		fi
 
 		echo "[?] Provide custom options for the Nmap TCP service scan command:"
-		echo "    Leave blank to use the ZrE default"
+		echo "    Leave blank to use the z0e default"
 		echo "    Hardcoded: <-sV> <-Pn> <-p> <--excludefile (null if not specified)> <-iL> <-oA>"
 		while true; do
-			read -e -p " [>] " zreng_tcps_opts
-			if [[ -z "$zreng_tcps_opts" ]]; then #leave blank to use default
+			read -e -p " [>] " z0eng_tcps_opts
+			if [[ -z "$z0eng_tcps_opts" ]]; then #leave blank to use default
 				ngineer_tcps_default=true
 				break
-			elif [[ "$zreng_tcps_opts" =~ (--excludefile|-iL|>>|>|&|-o\*) ]] || [[ "$zreng_tcps_opts" == *"- "* ]] || { [[ "$zreng_tcps_opts" =~ (-)$ ]] && [[ ! "$zreng_tcps_opts" =~ "-p-" ]]; }; then
+			elif [[ "$z0eng_tcps_opts" =~ (--excludefile|-iL|>>|>|&|-o\*) ]] || [[ "$z0eng_tcps_opts" == *"- "* ]] || { [[ "$z0eng_tcps_opts" =~ (-)$ ]] && [[ ! "$z0eng_tcps_opts" =~ "-p-" ]]; }; then
 				echo -e "\e[31m [X] Error: The command cannot contain [ --excludefile | -iL | >> | > | & | - | -o* ] -- this will likely cause errors \e[0m" >&2
-			elif [[ "$zreng_tcps_opts" == *"nmap"* ]]; then
+			elif [[ "$z0eng_tcps_opts" == *"nmap"* ]]; then
 				echo -e "\e[31m [X] Error: Only provide the desired options \e[0m" >&2
-			elif [[ "$zreng_ports_opts" == *"masscan"* ]]; then
+			elif [[ "$z0eng_ports_opts" == *"masscan"* ]]; then
 				echo -e "\e[31m [X] Error: Currently, masscan cannot be used here \e[0m" >&2
-			elif [[ "$zreng_tcps_opts" == *"-p"* ]] || [[ "$zreng_tcps_opts" == *"--top-ports"* ]]; then
-				echo -e "\e[31m [X] Error: ZrE will provide only open ports to this scan \e[0m" >&2
+			elif [[ "$z0eng_tcps_opts" == *"-p"* ]] || [[ "$z0eng_tcps_opts" == *"--top-ports"* ]]; then
+				echo -e "\e[31m [X] Error: z0e will provide only open ports to this scan \e[0m" >&2
 			else
 				break
 			fi
@@ -1220,21 +1534,21 @@ function zrengineer { #Enables users to customize commands
 
 		if [[ "$U_opt" = true || "$udp" = "y" || "$udp" = "yes" ]]; then
 			echo "[?] Provide custom options for the Nmap UDP service scan command:"
-			echo "    Leave blank to use the ZrE default"
+			echo "    Leave blank to use the z0e default"
 			echo "    Hardcoded: <-sU> <-sV> <-Pn> <-p> <--excludefile (null if not specified)> <-iL> <-oA>"
 			while true; do
-				read -e -p " [>] " zreng_udps_opts
-				if [[ -z "$zreng_udps_opts" ]]; then #leave blank to use default
+				read -e -p " [>] " z0eng_udps_opts
+				if [[ -z "$z0eng_udps_opts" ]]; then #leave blank to use default
 					ngineer_udps_default=true
 					break
-				elif [[ "$zreng_udps_opts" =~ (--excludefile|-iL|>>|>|&|-o\*) ]] || [[ "$zreng_udps_opts" == *"- "* ]] || { [[ "$zreng_udps_opts" =~ (-)$ ]] && [[ ! "$zreng_udps_opts" =~ "-p-" ]]; }; then
+				elif [[ "$z0eng_udps_opts" =~ (--excludefile|-iL|>>|>|&|-o\*) ]] || [[ "$z0eng_udps_opts" == *"- "* ]] || { [[ "$z0eng_udps_opts" =~ (-)$ ]] && [[ ! "$z0eng_udps_opts" =~ "-p-" ]]; }; then
 					echo -e "\e[31m [X] Error: The command cannot contain [ --excludefile | -iL | >> | > | & | - | -o* ] -- this will likely cause errors \e[0m" >&2
-				elif [[ "$zreng_udps_opts" == *"nmap"* ]]; then
+				elif [[ "$z0eng_udps_opts" == *"nmap"* ]]; then
 					echo -e "\e[31m [X] Error: Only provide the desired options \e[0m" >&2
-				elif [[ "$zreng_ports_opts" == *"masscan"* ]]; then
+				elif [[ "$z0eng_ports_opts" == *"masscan"* ]]; then
 					echo -e "\e[31m [X] Error: Currently, masscan cannot be used here \e[0m" >&2
-				elif [[ "$zreng_udps_opts" == *"-p"* ]] || [[ "$zreng_udps_opts" == *"--top-ports"* ]]; then
-					echo -e "\e[31m [X] Error: ZrE will provide only open ports to this scan \e[0m" >&2
+				elif [[ "$z0eng_udps_opts" == *"-p"* ]] || [[ "$z0eng_udps_opts" == *"--top-ports"* ]]; then
+					echo -e "\e[31m [X] Error: z0e will provide only open ports to this scan \e[0m" >&2
 				else
 					break
 				fi
@@ -1244,20 +1558,20 @@ function zrengineer { #Enables users to customize commands
 	elif [[ "$i_opt" = true || "$type" = "I" || "$type" = "i" || "$type" = "internal" || "$type" = "Internal" || "$type" = "Int" || "$type" = "int" ]]; then
 		###Internal###
 		echo "[?] Provide custom options for the masscan open port discovery scan command:"
-		echo "    Leave blank to use the ZrE default"
+		echo "    Leave blank to use the z0e default"
 		echo "    Hardcoded: <--open-only> <--excludefile (null if not specified)> <--include-file> <-oG>"
 		while true; do
-			read -e -p " [>] " zreng_ports_opts
-			if [[ -z "$zreng_ports_opts" ]]; then #leave blank to use default
+			read -e -p " [>] " z0eng_ports_opts
+			if [[ -z "$z0eng_ports_opts" ]]; then #leave blank to use default
 				ngineer_ports_default=true
 				break
-			elif [[ "$zreng_ports_opts" =~ (--src-port|--excludefile|--include-file|>>|>|&|-o\*) ]] || [[ "$zreng_ports_opts" == *"- "* ]] || { [[ "$zreng_ports_opts" =~ (-)$ ]] && [[ ! "$zreng_ports_opts" =~ "-p-" ]]; }; then
+			elif [[ "$z0eng_ports_opts" =~ (--src-port|--excludefile|--include-file|>>|>|&|-o\*) ]] || [[ "$z0eng_ports_opts" == *"- "* ]] || { [[ "$z0eng_ports_opts" =~ (-)$ ]] && [[ ! "$z0eng_ports_opts" =~ "-p-" ]]; }; then
 				echo -e "\e[31m [X] Error: The command cannot contain [ --src-port | --excludefile | --include-file | >> | > | & | - | -o* ] -- this will likely cause errors \e[0m" >&2
-			elif [[ "$zreng_ports_opts" == *"masscan"* ]]; then
+			elif [[ "$z0eng_ports_opts" == *"masscan"* ]]; then
 				echo -e "\e[31m [X] Error: Only provide the desired options \e[0m" >&2
-			elif [[ "$zreng_ports_opts" == *"nmap"* ]]; then
+			elif [[ "$z0eng_ports_opts" == *"nmap"* ]]; then
 				echo -e "\e[31m [X] Error: Currently, Nmap cannot be used here \e[0m" >&2
-			elif ! [[ "$zreng_ports_opts" =~ (-p[[:space:]]*([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])(-([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?|--top-ports[[:space:]]+([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))|-p- ]]; then
+			elif ! [[ "$z0eng_ports_opts" =~ (-p[[:space:]]*([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])(-([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?|--top-ports[[:space:]]+([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))|-p- ]]; then
 				echo -e "\e[31m [X] Error: At minimum, you must specify ports with -p or --top-ports with proper syntax \e[0m" >&2
 			else
 				break
@@ -1266,20 +1580,20 @@ function zrengineer { #Enables users to customize commands
 
 		if [[ "$U_opt" = true || "$udp" = "y" || "$udp" = "yes" ]]; then
 			echo "[?] Provide custom options for the Nmap UDP discovery scan command:"
-			echo "    Leave blank to use the ZrE default"
+			echo "    Leave blank to use the z0e default"
 			echo "    Hardcoded: <-sU> <--open> <--excludefile (null if not specified)> <-iL> <-oG>"
 			while true; do
-				read -e -p " [>] " zreng_udpa_opts
-				if [[ -z "$zreng_udpa_opts" ]]; then #leave blank to use default
+				read -e -p " [>] " z0eng_udpa_opts
+				if [[ -z "$z0eng_udpa_opts" ]]; then #leave blank to use default
 					ngineer_udpa_default=true
 					break
-				elif [[ "$zreng_udpa_opts" =~ (--excludefile|-iL|-sV|>>|>|&|-o\*) ]] || [[ "$zreng_udpa_opts" == *"- "* ]] || { [[ "$zreng_udpa_opts" =~ (-)$ ]] && [[ ! "$zreng_udpa_opts" =~ "-p-" ]]; }; then
+				elif [[ "$z0eng_udpa_opts" =~ (--excludefile|-iL|-sV|>>|>|&|-o\*) ]] || [[ "$z0eng_udpa_opts" == *"- "* ]] || { [[ "$z0eng_udpa_opts" =~ (-)$ ]] && [[ ! "$z0eng_udpa_opts" =~ "-p-" ]]; }; then
 					echo -e "\e[31m [X] Error: The command cannot contain [ --excludefile | -iL | -sV | >> | > | & | - | -o* ] -- this will likely cause errors \e[0m" >&2
-				elif [[ "$zreng_udpa_opts" == *"nmap"* ]]; then
+				elif [[ "$z0eng_udpa_opts" == *"nmap"* ]]; then
 					echo -e "\e[31m [X] Error: Only provide the desired options \e[0m" >&2
-				elif [[ "$zreng_ports_opts" == *"masscan"* ]]; then
+				elif [[ "$z0eng_ports_opts" == *"masscan"* ]]; then
 					echo -e "\e[31m [X] Error: Currently, masscan cannot be used here \e[0m" >&2
-				elif ! [[ "$zreng_udpa_opts" =~ (-p[[:space:]]*([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])(-([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?|--top-ports[[:space:]]+([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))|-p- ]]; then
+				elif ! [[ "$z0eng_udpa_opts" =~ (-p[[:space:]]*([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])(-([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?|--top-ports[[:space:]]+([0-9]|[1-9][0-9]{1,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))|-p- ]]; then
 					echo -e "\e[31m [X] Error: At minimum, you must specify ports with -p or --top-ports with proper syntax \e[0m" >&2
 				else
 					break
@@ -1288,21 +1602,21 @@ function zrengineer { #Enables users to customize commands
 		fi
 
 		echo "[?] Provide custom options for the Nmap TCP service scan command:"
-		echo "    Leave blank to use the ZrE default"
+		echo "    Leave blank to use the z0e default"
 		echo "    Hardcoded: <-sV> <-Pn> <-p> <--excludefile (null if not specified)> <-iL> <-oA>"
 		while true; do
-			read -e -p " [>] " zreng_tcps_opts
-			if [[ -z "$zreng_tcps_opts" ]]; then #leave blank to use default
+			read -e -p " [>] " z0eng_tcps_opts
+			if [[ -z "$z0eng_tcps_opts" ]]; then #leave blank to use default
 				ngineer_tcps_default=true
 				break
-			elif [[ "$zreng_tcps_opts" =~ (--excludefile|-iL|>>|>|&|-o\*) ]] || [[ "$zreng_tcps_opts" == *"- "* ]] || { [[ "$zreng_tcps_opts" =~ (-)$ ]] && [[ ! "$zreng_tcps_opts" =~ "-p-" ]]; }; then
+			elif [[ "$z0eng_tcps_opts" =~ (--excludefile|-iL|>>|>|&|-o\*) ]] || [[ "$z0eng_tcps_opts" == *"- "* ]] || { [[ "$z0eng_tcps_opts" =~ (-)$ ]] && [[ ! "$z0eng_tcps_opts" =~ "-p-" ]]; }; then
 				echo -e "\e[31m [X] Error: The command cannot contain [ --excludefile | -iL | >> | > | & | - | -o* ] -- this will likely cause errors \e[0m" >&2
-			elif [[ "$zreng_tcps_opts" == *"nmap"* ]]; then
+			elif [[ "$z0eng_tcps_opts" == *"nmap"* ]]; then
 				echo -e "\e[31m [X] Error: Only provide the desired options \e[0m" >&2
-			elif [[ "$zreng_ports_opts" == *"masscan"* ]]; then
+			elif [[ "$z0eng_ports_opts" == *"masscan"* ]]; then
 				echo -e "\e[31m [X] Error: Currently, masscan cannot be used here \e[0m" >&2
-			elif [[ "$zreng_tcps_opts" == *"-p"* ]] || [[ "$zreng_tcps_opts" == *"--top-ports"* ]]; then
-				echo -e "\e[31m [X] Error: ZrE will provide only open ports to this scan \e[0m" >&2
+			elif [[ "$z0eng_tcps_opts" == *"-p"* ]] || [[ "$z0eng_tcps_opts" == *"--top-ports"* ]]; then
+				echo -e "\e[31m [X] Error: z0e will provide only open ports to this scan \e[0m" >&2
 			else
 				break
 			fi
@@ -1310,21 +1624,21 @@ function zrengineer { #Enables users to customize commands
 
 		if [[ "$U_opt" = true || "$udp" = "y" || "$udp" = "yes" ]]; then
 			echo "[?] Provide custom options for the Nmap UDP service scan command:"
-			echo "    Leave blank to use the ZrE default"
+			echo "    Leave blank to use the z0e default"
 			echo "    Hardcoded: <-sU> <-sV> <-Pn> <-p> <--excludefile (null if not specified)> <-iL> <-oA>"
 			while true; do
-				read -e -p " [>] " zreng_udps_opts
-				if [[ -z "$zreng_udps_opts" ]]; then #leave blank to use default
+				read -e -p " [>] " z0eng_udps_opts
+				if [[ -z "$z0eng_udps_opts" ]]; then #leave blank to use default
 					ngineer_udps_default=true
 					break
-				elif [[ "$zreng_udps_opts" =~ (--excludefile|-iL|>>|>|&|-o\*) ]] || [[ "$zreng_udps_opts" == *"- "* ]] || { [[ "$zreng_udps_opts" =~ (-)$ ]] && [[ ! "$zreng_udps_opts" =~ "-p-" ]]; }; then
+				elif [[ "$z0eng_udps_opts" =~ (--excludefile|-iL|>>|>|&|-o\*) ]] || [[ "$z0eng_udps_opts" == *"- "* ]] || { [[ "$z0eng_udps_opts" =~ (-)$ ]] && [[ ! "$z0eng_udps_opts" =~ "-p-" ]]; }; then
 					echo -e "\e[31m [X] Error: The command cannot contain [ --excludefile | -iL | >> | > | & | - | -o* ] -- this will likely cause errors \e[0m" >&2
-				elif [[ "$zreng_udps_opts" == *"nmap"* ]]; then
+				elif [[ "$z0eng_udps_opts" == *"nmap"* ]]; then
 					echo -e "\e[31m [X] Error: Only provide the desired options \e[0m" >&2
-				elif [[ "$zreng_ports_opts" == *"masscan"* ]]; then
+				elif [[ "$z0eng_ports_opts" == *"masscan"* ]]; then
 					echo -e "\e[31m [X] Error: Currently, masscan cannot be used here \e[0m" >&2
-				elif [[ "$zreng_udps_opts" == *"-p"* ]] || [[ "$zreng_udps_opts" == *"--top-ports"* ]]; then
-					echo -e "\e[31m [X] Error: ZrE will provide only open ports to this scan \e[0m" >&2
+				elif [[ "$z0eng_udps_opts" == *"-p"* ]] || [[ "$z0eng_udps_opts" == *"--top-ports"* ]]; then
+					echo -e "\e[31m [X] Error: z0e will provide only open ports to this scan \e[0m" >&2
 				else
 					break
 				fi
@@ -1535,19 +1849,19 @@ function alivesandportscheck { #checks if alives and openPorts lists are populat
 		status_msg="[!] No alive hosts detected, check targets or inquire about scan defenses or other interference -- Exiting Zero-E..."
 		echo -e "\e[33m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		ntfy "$status_msg"
-		zrecleanup
+		z0ecleanup
 		exit 1
 	elif grep -q "\S" "$filepath/$typevar-alives.txt" && ! grep -q "\S" "$filepath/$typevar-openPorts.txt"; then
 		status_msg="[!] No open ports detected, check targets or inquire about scan defenses or other interference -- Exiting Zero-E..."
 		echo -e "\e[33m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		ntfy "$status_msg"
-		zrecleanup
+		z0ecleanup
 		exit 1
 	else
 		status_msg="[!] No alive hosts or open ports detected, check targets or inquire about scan defenses or other interference -- Exiting Zero-E..."
 		echo -e "\e[33m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		ntfy "$status_msg"
-		zrecleanup
+		z0ecleanup
 		exit 1
 	fi
 }
@@ -1597,7 +1911,7 @@ function setfirewallrule { #sets the firewall rule used in int methodology
 function ntfy { # enables ntfy functionality
     if [ "$ntfy_flag" = true ]; then
         
-		if [ "$zre_started" != true ]; then 
+		if [ "$z0e_started" != true ]; then 
 			# Remove any spaces from the provided value
 	        ntfy_arg=$(echo "$ntfy_arg" | tr -d '[:space:]')
         	# Check if the value contains a comma
@@ -1621,7 +1935,7 @@ function ntfy { # enables ntfy functionality
         	fi
 		fi
 
-        if [ "$zre_started" == true ]; then
+        if [ "$z0e_started" == true ]; then
         	# Send the POST request to the ntfy server
 			local msg="$1"
         	curl -H "X-Priority: $ntfy_pri" -d "$msg" "$ntfy_url" >> "$filepath/logs/$typevar-ntfy.log" 2>&1
@@ -1677,16 +1991,16 @@ function logconfig { # Logs the configuration of the scan
                 output_dir="outputDirectory=\"$value\""
                 ;;
             ips)
-                targets_file="targetsFile=\"$ips_log\""
+                targets_file="targets=\"$ips_log\""
                 ;;
             total_hosts)
                 total_targets="totalTargets=\"$value\""
                 ;;
             nostrikes)
-                if [ "$value" = "/var/lib/zeroe/nullexcludes.zre" ]; then
-                    excludes_file="excludesFile=\"none\""
+                if [ "$value" = "/var/lib/zeroe/nullexcludes.z0e" ]; then
+                    excludes_file="excludes=\"none\""
                 else
-                    excludes_file="excludesFile=\"$value\""
+                    excludes_file="excludes=\"$exc_log\""
                 fi
                 ;;
             *)
@@ -1770,7 +2084,7 @@ function sessioninit { # Initializes sessions
 }
 
 #Banner
-echo "$version -- https://github.com/Inscyght/Zero-E"
+echo "$banner -- https://github.com/Inscyght/Zero-E"
 echo "Support this project -- https://github.com/sponsors/Inscyght"
 echo "                        https://buymeacoffee.com/inscyght"
 echo ''
@@ -1781,7 +2095,9 @@ updatecheck
 #auxiliary options
 help_flag=false
 version_flag=false
+geniplistopt=false
 geniplist_file=""
+countopt=false
 checkfile=""
 defaults=false
 only_flag=false
@@ -1789,6 +2105,7 @@ ngineer_mode=false
 listwinhosts_flag=false
 parseports_flag=false
 listiphostnames_flag=false
+ntfy_flag=false
 session=""
 session_flag=false
 
@@ -1803,24 +2120,133 @@ while [[ $# -gt 0 ]]; do
             shift # Remove --version from processing
             ;;
         --geniplist)
-            shift # Remove --geniplist from processing
-            if [[ $# -gt 0 && ! $1 =~ ^- && -f $1 ]]; then #If there is at least one more argument, the next arg doesnt start with a -, and the arg refers to an existing file
-                geniplistopt="y"
-				geniplist_file="$1"
-                shift # Remove file argument from processing
+            shift  # remove --geniplist from $@
+            if [[ $# -gt 0 && ! "$1" =~ ^- ]]; then
+                arg="$1"
+                shift  # remove the file/IP argument
+                # 1) Single existing, non-empty file with no commas or IP pattern => use it directly
+                if [ -f "$arg" ] && [ -s "$arg" ] \
+                   && ! [[ "$arg" =~ [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ ]] \
+                   && [[ "$arg" != *","* ]]
+                then
+                    geniplistopt=true
+                    geniplist_file="$arg"
+                    # Optionally validate:
+                    checkfile="$geniplist_file"
+                    checkinvalidips
+                # 2) If the arg has commas or IP pattern => two-file approach
+                elif { ! [ -f "$arg" ] && [[ "$arg" =~ [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ ]]; } \
+                      || [[ "$arg" == *","* ]]
+                then
+                    geniplistopt=true
+                    # Create metadata + raw files
+                    metadata_file=$(mktemp /tmp/geniplist_ips.metadata.XXXXXX)
+                    raw_file=$(mktemp /tmp/geniplist_ips.raw.XXXXXX)
+                    IFS=',' read -ra token_array <<< "$arg"
+                    anyerrors=false
+                    for token in "${token_array[@]}"; do
+                        trimmed="$(echo "$token" | xargs)"
+                        if [ -f "$trimmed" ]; then
+                            # If it's a file, ensure non-empty
+                            if [ ! -s "$trimmed" ]; then
+                                echo -e "\e[31m [X] Error: '$trimmed' is empty \e[0m" >&2
+                                anyerrors=true
+                                break
+                            fi
+                            # Merge lines with a prefix in metadata_file
+                            while IFS= read -r line; do
+                                echo "__SRC:FILE:${trimmed}__ $line" >> "$metadata_file"
+                                echo "$line" >> "$raw_file"
+                            done < "$trimmed"
+                        else
+                            # It's an IP / range / CIDR
+                            echo "__SRC:INPUT__ $trimmed" >> "$metadata_file"
+                            echo "$trimmed" >> "$raw_file"
+                        fi
+                    done
+                    if $anyerrors; then
+                        exit 1
+                    fi
+                    # Validate the metadata file
+                    checkfile="$metadata_file"
+                    checkinvalidips
+                    if [[ "$allvalid" -eq 1 ]]; then
+                        geniplist_file="$raw_file"
+                    else
+                        exit 1
+                    fi
+                else
+                    echo -e "\e[31m [X] Error: --geniplist requires an existing file and/or a comma-separated IP list \e[0m" >&2
+                    exit 1
+                fi
             else
-                echo -e "\e[31m [X] Error: --geniplist requires an existing file containing a list of IP addresses (e.g. targets.txt) \e[0m" >&2
+                echo -e "\e[31m [X] Error: --geniplist requires a file and/or IP list argument \e[0m" >&2
                 exit 1
             fi
             ;;
         --count)
-            shift # Remove --count from processing
-            if [[ $# -gt 0 && ! $1 =~ ^- && -f $1 ]]; then
-                countopt="y"
-				checkfile="$1"
-                shift # Remove file argument from processing
+            shift  # Remove --count
+            if [[ $# -gt 0 && ! "$1" =~ ^- ]]; then
+                arg="$1"
+				countopt_arg="$1"
+                shift
+
+                # 1) Single file, non-empty, no commas or IP pattern => direct use
+                if [ -f "$arg" ] && [ -s "$arg" ] \
+                   && ! [[ "$arg" =~ [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ ]] \
+                   && [[ "$arg" != *","* ]]
+                then
+                    countopt=true
+                    checkfile="$arg"
+                    checkinvalidips  # optional validation
+
+                # 2) If argument has commas or IP pattern => create metadata + raw
+                elif { ! [ -f "$arg" ] && [[ "$arg" =~ [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ ]]; } \
+                      || [[ "$arg" == *","* ]]
+                then
+                    countopt=true
+                    metadata_file=$(mktemp /tmp/count_ips.metadata.XXXXXX)
+                    raw_file=$(mktemp /tmp/count_ips.raw.XXXXXX)
+
+                    IFS=',' read -ra ip_array <<< "$arg"
+                    anyerrors=false
+                    for token in "${ip_array[@]}"; do
+                        trimmed="$(echo "$token" | xargs)"
+                        if [ -f "$trimmed" ]; then
+                            if [ ! -s "$trimmed" ]; then
+                                echo -e "\e[31m [X] Error: '$trimmed' is empty \e[0m" >&2
+                                anyerrors=true
+                                break
+                            fi
+                            while IFS= read -r line; do
+                                echo "__SRC:FILE:${trimmed}__ $line" >> "$metadata_file"
+                                echo "$line" >> "$raw_file"
+                            done < "$trimmed"
+                        else
+                            echo "__SRC:INPUT__ $trimmed" >> "$metadata_file"
+                            echo "$trimmed" >> "$raw_file"
+                        fi
+                    done
+
+                    if $anyerrors; then
+                        exit 1
+                    fi
+
+                    # Validate if desired
+                    checkfile="$metadata_file"
+                    checkinvalidips
+                    if [[ "$allvalid" -eq 1 ]]; then
+                        # Now run your counting logic on $raw_file
+                        checkfile="$raw_file"
+                    else
+                        exit 1
+                    fi
+                else
+                    echo -e "\e[31m [X] Error: --count requires an existing file or a comma-separated IP list \e[0m" >&2
+                    exit 1
+                fi
             else
-                echo -e "\e[31m [X] Error: --count requires an existing file containing a list of a IP addresses (e.g. targets.txt) \e[0m" >&2
+                echo -e "\e[31m [X] Error: --count requires a file and/or IP list argument \e[0m" >&2
                 exit 1
             fi
             ;;
@@ -1880,95 +2306,103 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 if [ "$help_flag" = true ]; then
-	echo "$version -- https://github.com/Inscyght/Zero-E"
+	#echo "$banner -- https://github.com/Inscyght/Zero-E"
     echo ''
-	echo "Usage: sudo $(basename $0) [options]"
+	echo "USAGE: sudo $(basename $0) [options]"
 	echo "While there are options, providing them is not necessary with Zero-E"
-	echo "ZrE will prompt you for required configuration settings if not provided"
+	echo "z0e will prompt you for required configuration settings if not provided"
 	echo ''
 	echo "For advanced usage:"
-	echo "sudo $(basename $0) [-e | -i] [-o <output_directory>] [-t <targets_file>] [-x [excludes_file]]"
+	echo "sudo $(basename $0) [-e | -i] [-o <output_directory>] [-t <targets_file(s) and/or IP(s)>] [-x [excludes_file and/or IP(s)]]"
 	echo "                     [-U | -u] [-S [stage] | -s]"
 	echo "                     [--defaults] [--ngineer] [--only]"
-	echo "                     [--count <filename>] [--geniplist <filename>]"
+	echo "                     [--count <filename(s) and/or IP(s)>] [--geniplist <filename(s) and/or IP(s)>]"
 	echo "                     [--listwinhosts <StandardNmapFile> [OutputFile]]"
 	echo "                     [--parseports <GrepableNmapFile> <Comma,Separated,Ports> [OutputFileName]]"
 	echo "                     [--listiphostname <StandardNmapFile> [OutputFile]]"
 	echo "                     [--ntfy [priority,]<server/topic_url>] [--session <session_name>]"
 	echo "                     [--help] [--version]"
 	echo ''	
-	echo "PRIMARY OPTIONS (ZrE will prompt for these if not provided):"
-	echo "  -e               Run external assessment scans (cannot be used with -i)"
-	echo "  -i               Run internal assessment scans (cannot be used with -e)"
-	echo "  -o <dir>         Set output directory for generated files"
-	echo "  -t <file>        Set file containing target IP addresses (one per line: single IP, range, or CIDR)"
-	echo "  -x [file]        Set file containing IP addresses to exclude (omit argument to disable exclusion prompt)"
-	echo "  -U               Enable UDP scans (cannot be used with -u)"
-	echo "  -u               Disable UDP scans (cannot be used with -U)"
-	echo "  -S [stage]       If no stage provided, resume from saved stage (cannot be used with -s)"
-	echo "                   If stage provided, skip to the specified stage"
-	echo "                   Available stages:"
-	echo "                     - discovery-alives (TCP-only)"
-	echo "                     - discovery-ports (TCP-only)"
-	echo "                     - discovery-udp"
-	echo "                     - discovery-lists"
-	echo "                     - services-tcp"
-	echo "                     - services-udp"
-	echo "  -s               Start from the beginning (disables stage resuming but still saves stages for later resumption)"
+	echo "PRIMARY OPTIONS (z0e will prompt for these if not provided):"
+	echo "  -e                      Run external assessment scans (cannot be used with -i)"
+	echo "  -i                      Run internal assessment scans (cannot be used with -e)"
+	echo "  -o <dir>                Set output directory for generated files"
+	echo "  -t <file(s) and/or IPs> Provide target IP addresses and/or files in a comma-separated list (file.txt,1.1.1.1)"
+	echo "                            Supports single IPs, ranges, or CIDR notation"
+	echo "  -x [file(s) and/or IPs] Provide target IP addresses and/or files to exclude in a comma-separated list (file.txt,1.1.1.1)"
+	echo "                            Supports single IPs, ranges, or CIDR notation -- Omit argument to disable exclusion prompt"
+	echo "  -U                      Enable UDP scans (cannot be used with -u)"
+	echo "  -u                      Disable UDP scans (cannot be used with -U)"
+	echo "  -S [stage]              If no stage provided, resume from saved stage (cannot be used with -s)"
+	echo "                            If stage provided, skip to the specified stage"
+	echo "                            Available stages:"
+	echo "                              - discovery-alives (TCP-only)"
+	echo "                              - discovery-ports (TCP-only)"
+	echo "                              - discovery-udp"
+	echo "                              - discovery-lists"
+	echo "                              - services-tcp"
+	echo "                              - services-udp"
+	echo "  -s                      Start from the beginning (disables stage resuming but still saves stages for later resumption)"
 	echo ''
 	echo "AUXILIARY OPTIONS (Enable additional functionality):"
-	echo "  --defaults       Run ZrE with default settings (overridden by explicitly provided options)"
-	echo "                   Default settings:"
-	echo "                     - Stage (-S/-s): Starts at initial alives scan"
-	echo "                     - Targets file (-t): ./targets.txt"
-	echo "                     - Output directory (-o): ./zre-output"
-	echo "                     - Excluded targets (-x): None"
-	echo "                     - UDP scans (-U/-u): Enabled"
-	echo "  --ngineer        Enable entry of custom command options"
-	echo "  --only           Run only UDP scans (if enabled) and/or specified stage (does not apply to other options)"
-	echo "  --count <file>   Count total target IP addresses (does not require sudo)"
-	echo "  --geniplist <file>"
-	echo "                   Generate a list of single IP addresses from IPs, ranges, and CIDRs in the provided file"
-	echo "                   (does not require sudo)"
+	echo "  --defaults                   Run z0e with default settings (overridden by explicitly provided options)"
+	echo "                                 Default settings:"
+	echo "                                   - Stage (-S/-s): Starts at initial alives scan"
+	echo "                                   - Targets file (-t): ./targets.txt"
+	echo "                                   - Output directory (-o): ./z0e-output"
+	echo "                                   - Excluded targets (-x): None"
+	echo "                                   - UDP scans (-U/-u): Enabled"
+	echo "  --ngineer                    Enable entry of custom command options"
+	echo "  --only                       Run only UDP scans (if enabled) and/or specified stage (does not apply to other options)"
+	echo "  --count <file(s) and/or IPs> Count total IP addresses in the provided comma-separated file(s) and/or IPs (does not require sudo)"
+	echo "  --geniplist <file(s) and/or IPs>"
+	echo "                               Generate a list of single IP addresses from the provided comma-separated file(s) and/or IPs"
+	echo "                                 (does not require sudo)"
 	echo "  --listwinhosts <NmapFile> [OutputFile]"
-	echo "                   Parse a standard Nmap file (.nmap) to list IP addresses of Windows hosts (does not require sudo)"
+	echo "                               Parse a standard Nmap file (.nmap) to list IP addresses of Windows hosts (does not require sudo)"
 	echo "  --parseports <GrepableNmapFile> <Comma,Separated,Ports> [OutputFileName]"
-	echo "                   Parse a grepable Nmap file (.gnmap) for hosts with specified open ports"
-	echo "                   and output results in a readable format (does not require sudo)"
+	echo "                               Parse a grepable Nmap file (.gnmap) for hosts with specified open ports"
+	echo "                                 and output results in a readable format (does not require sudo)"
 	echo "  --listiphostnames <NmapFile> [OutputFile]"
-	echo "                   Parse a standard Nmap file (.nmap) to list IP address and hostname pairs"
-	echo "                   (does not require sudo)"
+	echo "                               Parse a standard Nmap file (.nmap) to list IP address and hostname pairs"
+	echo "                                 (does not require sudo)"
 	echo "  --ntfy [priority,]<server/topic_url>"
-	echo "                   Enable ntfy notifications (priority 1-5 optional, followed by server/topic URL)"
-	echo "  --session <name> Enable session functionality (provide a new or existing session name)"
-	echo "                   To resume a session, provide the session name with the -S option"
-	echo "  --help           Display this help message"
-	echo "  --version        Display the version of Zero-E"
+	echo "                               Enable ntfy notifications (priority 1-5 optional, followed by server/topic URL)"
+	echo "  --session <name>             Enable session functionality (provide a new or existing session name)"
+	echo "                                 To resume a session, provide the session name with the -S option"
+	echo "  --help                       Display this help message"
+	echo "  --version                    Display the version of Zero-E"
 	exit 0
 #Check for --version option (for troubleshooting purposes)
 elif [ "$version_flag" = true ]; then
 	echo $version
 	exit 0
 #Check for --count option
-elif [ -n "$checkfile" ]; then
+elif [ "$countopt" == true ]; then
 	mactools=("dos2unix")
 	linuxtools=("dos2unix")
 	checktools #Check if required tools are installed
-	checkfile="$checkfile"
-	checkinvalidips
 	echo "Counting total number of target hosts..."
 	totaltargets
-	echo "$total_hosts -- total number of host IP addresses in $checkfile"
+	echo "$total_hosts -- total number of host IP addresses in $countopt_arg"
 	exit 0
 #Check for --geniplist option
-elif [ -n "$geniplist_file" ]; then
+elif [ "$geniplistopt" == true ]; then
 	mactools=("dos2unix")
 	linuxtools=("dos2unix")
 	checktools #Check if required tools are installed
 	checkfile="$geniplist_file"
-	checkinvalidips
-	echo "Generating list of single IP addresses..." >&2
-	geniplist
+	# Create a temporary file to buffer geniplist's output
+    temp_output=$(mktemp)
+	geniplist > "$temp_output" &
+	GEN_PID=$!
+	status_msg="Generating list of single IP addresses..."
+	use_stderr=true
+	statusgeniplist "$GEN_PID"
+	wait "$GEN_PID"
+	# output the buffered IP addresses to stdout
+    cat "$temp_output"
+    rm "$temp_output"
 	exit 0
 elif [ "$listwinhosts_flag" = true ]; then
 	genwindowshostlist "$1" "$2"
@@ -2035,44 +2469,161 @@ while getopts ':eio:t:x:UusS:' opt "${remaining_args[@]}" 2>/dev/null; do
 				o_opt="$OPTARG"
 			fi
 			;;
-    	t) 
-			if [[ "$OPTARG" == -* ]] || [[ -z "$OPTARG" ]] || [[ ! -f "$OPTARG" ]]; then
-                echo -e "\e[31m [X] Error: -t requires an existing file containing the list of target IP addresses (e.g. targets.txt) \e[0m" >&2
-                exit 1
-			elif [[ "$OPTARG" == *" "* ]]; then
-				echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed in file names \e[0m" >&2
-				exit 1
-			elif [ ! -s "$OPTARG" ]; then #Check if the file is empty
-        		echo -e "\e[31m [X] Error: $OPTARG is empty \e[0m" >&2
-				exit 1
-            else
-				t_opt="$OPTARG"
-				checkfile="$t_opt"
-				checkinvalidips
-			fi
-    		;;
+    	t)
+			ips_log="$OPTARG"
+		    ip_list="$OPTARG"
+		    # If OPTARG is a single file with no IP pattern, just use it
+		    if [ -f "$OPTARG" ] && [ -s "$OPTARG" ] \
+		       && ! [[ "$OPTARG" =~ [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ ]] \
+		       && [[ "$OPTARG" != *","* ]]; then
+		        t_opt="$OPTARG"
+		        checkfile="$t_opt"
+		        checkinvalidips
+		    # Else if it’s comma-separated or looks like IP
+		    elif { ! [ -f "$OPTARG" ] && [[ "$OPTARG" =~ [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ ]]; } \
+		         || [[ "$OPTARG" == *","* ]]; then
+		        # Split on commas
+		        IFS=',' read -ra ip_array <<< "$ip_list"
+		        # Create two files: metadata and raw
+		        metadata_file=$(mktemp /tmp/targets_single_ips.metadata.XXXXXX)
+		        raw_file=$(mktemp /tmp/targets_single_ips.raw.XXXXXX)
+		        anyerrors=false
+		        for token in "${ip_array[@]}"; do
+		            trimmed_token="$(echo "$token" | xargs)"
+		            if [ -f "$trimmed_token" ]; then
+		                # It's a file
+		                if [ ! -s "$trimmed_token" ]; then
+		                    echo -e "\e[31m [X] Error: '$trimmed_token' is empty \e[0m" >&2
+		                    anyerrors=true
+		                    break
+		                fi
+		                # Add each line to metadata (with prefix) and raw (no prefix)
+		                while IFS= read -r fileline; do
+		                    echo "__SRC:FILE:${trimmed_token}__ $fileline" >> "$metadata_file"
+		                    echo "$fileline" >> "$raw_file"
+		                done < "$trimmed_token"
+		            else
+		                # It's an IP or range => prefix for metadata
+		                echo "__SRC:INPUT__ $trimmed_token" >> "$metadata_file"
+		                echo "$trimmed_token" >> "$raw_file"
+		            fi
+		        done
+		        if $anyerrors; then
+		            exit 1
+		        fi
+		        # Validate using the metadata file
+		        checkfile="$metadata_file"
+		        checkinvalidips
+		        # If valid, set t_opt to the raw file (no metadata)
+		        if [[ "$allvalid" -eq 1 ]]; then
+		            t_opt="$raw_file"
+		        else
+		            exit 1
+		        fi
+		    else
+		        # Otherwise, assume single file or error out
+		        if [[ "$OPTARG" == -* ]] || [[ -z "$OPTARG" ]]; then
+		            echo -e "\e[31m [X] Error: -t requires an existing file, IP address, or any combination in a comma-separated list \e[0m" >&2
+		            exit 1
+		        elif [[ "$OPTARG" == *" "* ]]; then
+		            echo -e "\e[31m [X] Error: Whitespace is not allowed in file names \e[0m" >&2
+		            exit 1
+		        elif [ -f "$OPTARG" ]; then
+		            if [ ! -s "$OPTARG" ]; then
+		                echo -e "\e[31m [X] Error: $OPTARG is empty \e[0m" >&2
+		                exit 1
+		            fi
+		            t_opt="$OPTARG"
+		            checkfile="$t_opt"
+		            checkinvalidips
+		        else
+		            echo -e "\e[31m [X] Error: -t requires an existing file, IP address, or any combination in a comma-separated list \e[0m" >&2
+		            exit 1
+		        fi
+		    fi
+		    ;;
 		x)
-			if [[ "${OPTARG:0:1}" == '-' ]]; then #Enables -x to be run with or without an argument
-                OPTIND=$((OPTIND - 1))
-				mkdir -p /var/lib/zeroe
-				touch /var/lib/zeroe/nullexcludes.zre
-				x_opt="/var/lib/zeroe/nullexcludes.zre"
-			elif [[ "$OPTARG" == -* ]] || [[ ! -f "$OPTARG" ]]; then
-				echo -e "\e[31m [X] Error: -x requires an existing file containing the list of IP addresses to exclude (e.g. exclude.txt) \e[0m" >&2
-                exit 1
-			elif [[ "$OPTARG" == *" "* ]]; then
-				echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed in file names \e[0m" >&2
-				exit 1
-			elif [ ! -s "$OPTARG" ]; then #Check if the file is empty
-        		echo -e "\\e[31m [X] Error: $OPTARG is empty \\e[0m" >&2
-				exit 1
-			else
-				x_opt="$OPTARG"
-				x_opt_provided="y"
-				checkfile="$x_opt"
-				checkinvalidips
-			fi
-			;;
+			exc_log="$OPTARG"
+		    # If -x is run with or without an argument
+		    if [[ "${OPTARG:0:1}" == '-' ]]; then
+		        # Move back one step for getopts so the next arg is re-read
+		        OPTIND=$((OPTIND - 1))
+		        mkdir -p /var/lib/zeroe
+		        touch /var/lib/zeroe/nullexcludes.z0e
+		        x_opt="/var/lib/zeroe/nullexcludes.z0e"
+		    # If OPTARG looks like a single, existing, non-empty file with no IP pattern, just use it
+		    elif [ -f "$OPTARG" ] && [ -s "$OPTARG" ] \
+		         && ! [[ "$OPTARG" =~ [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ ]] \
+		         && [[ "$OPTARG" != *","* ]]
+		    then
+		        x_opt="$OPTARG"
+		        checkfile="$x_opt"
+		        checkinvalidips
+		    # If OPTARG either contains commas or IP octet => treat as comma-separated
+		    elif { ! [ -f "$OPTARG" ] && [[ "$OPTARG" =~ [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ ]]; } \
+		         || [[ "$OPTARG" == *","* ]]
+		    then
+		        ip_list="$OPTARG"
+		        IFS=',' read -ra ip_array <<< "$ip_list"
+		        # Two files: metadata + raw
+		        metadata_file=$(mktemp /tmp/excludes_single_ips.metadata.XXXXXX)
+		        raw_file=$(mktemp /tmp/excludes_single_ips.raw.XXXXXX)
+		        anyerrors=false
+		        for token in "${ip_array[@]}"; do
+		            trimmed_ip="$(echo "$token" | xargs)"
+		            # If it's a file, merge its lines
+		            if [ -f "$trimmed_ip" ]; then
+		                if [ ! -s "$trimmed_ip" ]; then
+		                    echo -e "\e[31m [X] Error: '$trimmed_ip' is empty \e[0m" >&2
+		                    anyerrors=true
+		                    break
+		                fi
+		                while IFS= read -r line; do
+		                    echo "__SRC:FILE:${trimmed_ip}__ $line" >> "$metadata_file"
+		                    echo "$line" >> "$raw_file"
+		                done < "$trimmed_ip"
+		            else
+		                # It's an IP or range
+		                echo "__SRC:INPUT__ $trimmed_ip" >> "$metadata_file"
+		                echo "$trimmed_ip" >> "$raw_file"
+		            fi
+		        done
+		        if $anyerrors; then
+		            exit 1
+		        fi
+		        # Validate the metadata file
+		        checkfile="$metadata_file"
+		        checkinvalidips
+		        # If valid, set x_opt to the raw file
+		        if [[ "$allvalid" -eq 1 ]]; then
+		            x_opt="$raw_file"
+		        else
+		            exit 1
+		        fi
+		    else
+		        # Catch-all for invalid usage
+		        if [[ "$OPTARG" == -* ]] || [[ -z "$OPTARG" ]]; then
+		            echo -e "\e[31m [X] Error: -x requires an existing file, IP address, or any combination in a comma-separated list \e[0m" >&2
+		            exit 1
+		        elif [[ "$OPTARG" == *" "* ]]; then
+		            echo -e "\e[31m [X] Error: To proactively avoid errors, whitespace is not allowed in file names \e[0m" >&2
+		            exit 1
+		        elif [ -f "$OPTARG" ]; then
+		            if [ ! -s "$OPTARG" ]; then
+		                echo -e "\e[31m [X] Error: $OPTARG is empty \e[0m" >&2
+		                exit 1
+		            fi
+		            x_opt="$OPTARG"
+		            checkfile="$x_opt"
+		            checkinvalidips
+		        else
+		            echo -e "\e[31m [X] Error: -x requires an existing file, IP address, or any combination in a comma-separated list \e[0m" >&2
+		            exit 1
+		        fi
+		    fi
+		    # Mark that -x was provided
+		    x_opt_provided="y"
+		    ;;
 		U) 
     		U_opt=true 
     		;;
@@ -2095,12 +2646,12 @@ while getopts ':eio:t:x:UusS:' opt "${remaining_args[@]}" 2>/dev/null; do
                 S_opt=""
 			elif [[ ${OPTARG} == "x" ]]; then
 				mkdir -p /var/lib/zeroe
-				touch /var/lib/zeroe/nullexcludes.zre
-				x_opt="/var/lib/zeroe/nullexcludes.zre"
+				touch /var/lib/zeroe/nullexcludes.z0e
+				x_opt="/var/lib/zeroe/nullexcludes.z0e"
 			fi
 			;;
     	\?)
-    		echo -e "\e[31m [X] Error: invalid option "\`-$OPTARG\`" -- valid options are [-e || -i] [-o] [-t] [-U || -u] [-S || -s] [-x] [--help] [--defaults] [--ngineer] [--only] [--count] [--geniplist] [--listwinhosts] [--parseports] [--listiphostnames] \e[0m" >&2
+    		echo -e "\e[31m [X] Error: invalid option "\`-$OPTARG\`" -- valid options are [-e || -i] [-o] [-t] [-U || -u] [-S || -s] [-x] [--help] [--defaults] [--ngineer] [--only] [--count] [--geniplist] [--listwinhosts] [--parseports] [--listiphostnames] [--ntfy] [--session] \e[0m" >&2
     		exit 1
     		;;
 	esac
@@ -2111,7 +2662,7 @@ if [[ "$last_arg" == "-o" ]] && [[ -z "$o_opt" ]]; then
 	echo -e "\e[31m [X] Error: -o requires a directory name or path \e[0m" >&2
 	exit 1
 elif [[ "$last_arg" == "-t" ]] && [[ -z "$t_opt" ]]; then
-	echo -e "\e[31m [X] Error: -t requires an existing file containing the list of target IP addresses (e.g. targets.txt) \e[0m" >&2
+	echo -e "\e[31m [X] Error: -t requires an existing file, IP address, or any combination in a comma-separated list \e[0m" >&2
 	exit 1
 fi
 #Check if both -e and -i options are used
@@ -2121,7 +2672,7 @@ if [ "$e_opt" = true ] && [ "$i_opt" = true ]; then
 fi
 #Check if both -U and -u options are used
 if [ "$U_opt" = true ] && [ "$u_opt" = true ]; then
-    echo -e "\e[31m [X] Error: You seem confused, script kiddie... -U and -u options used together makes no sense \e[0m" >&2
+    echo -e "\e[31m [X] Error: You seem confused, script kiddie... -U and -u options used together doesn't make sense \e[0m" >&2
     exit 1
 fi
 #Check if both -s and -S options are used
@@ -2131,7 +2682,7 @@ if [ "$s_opt" = true ] && [ "$S_opt" != "disabled" ]; then
 fi
 #Check if both -t and -x are the same file
 if [ "$t_opt" = "$x_opt" ] && [ -n "$t_opt" ] && [ -n "$x_opt" ]; then
-    echo -e "\e[31m [X] Error: You seem confused, script kiddie... targets and excludes cannot be the same file \e[0m" >&2
+    echo -e "\e[31m [X] Error: You must be perplexed, script kiddie... targets and excludes cannot be the same file \e[0m" >&2
     exit 1
 fi
 #Validate ntfy argument
@@ -2142,13 +2693,13 @@ sessioninit
 stageinit
 # Determine file paths based on session
 if [[ "$session_flag" = true && -n "$session" ]]; then
-    stage_file="/var/lib/zeroe/sessions/$session/stage.zre"
-    vars_file="/var/lib/zeroe/sessions/$session/vars.zre"
-    initdir_file="/var/lib/zeroe/sessions/$session/initdir.zre"
+    stage_file="/var/lib/zeroe/sessions/$session/stage.z0e"
+    vars_file="/var/lib/zeroe/sessions/$session/vars.z0e"
+    initdir_file="/var/lib/zeroe/sessions/$session/initdir.z0e"
 else
-    stage_file="/var/lib/zeroe/stage.zre"
-    vars_file="/var/lib/zeroe/vars.zre"
-    initdir_file="/var/lib/zeroe/initdir.zre"
+    stage_file="/var/lib/zeroe/stage.z0e"
+    vars_file="/var/lib/zeroe/vars.z0e"
+    initdir_file="/var/lib/zeroe/initdir.z0e"
 fi
 # Final checks and functions
 if [ -f "$stage_file" ] && [ -f "$vars_file" ] && [[ "$resume" = "y" ]]; then #If successfully resuming saved stage...
@@ -2195,7 +2746,7 @@ else #Starting new scan or from specific stage
 	excludes
 	#Check if targets and excludes are the same and repeat loop while they are
 	if cmp -s "$ips" "$nostrikes"; then
-		echo -e "\e[31m [X] Error: You seem confused, script kiddie... all of the targets are excluded -- try again \e[0m" >&2
+		echo -e "\e[31m [X] Error: You seem confused, script kiddie... all of the targets are excluded \e[0m" >&2
 		ips=""
 		t_opt=""
 		nostrikes=""
@@ -2207,7 +2758,7 @@ else #Starting new scan or from specific stage
 			echo -e "\r     Counting total number of target hosts... $total_hosts"
 			excludes
 			if cmp -s "$ips" "$nostrikes"; then
-				echo -e "\e[31m [X] Error: You seem very confused, script kiddie... all of the targets are still excluded \e[0m" >&2
+				echo -e "\e[31m [X] Error: You must be perplexed, script kiddie... all of the targets are still excluded \e[0m" >&2
 				ips=""
 				t_opt=""
 				nostrikes=""
@@ -2225,7 +2776,7 @@ if [[ "$only_flag" == true ]] && [[ "$u_opt" == true ]] && [[ "$U_opt" == false 
 fi
 #If ngineer mode
 if [[ "$ngineer_mode" == true && "$resume" != "y" ]]; then
-	zrengineer
+	z0engineer
 fi
 #Save options to file for resuming stage
 if [[ "$resume" != "y" ]]; then
@@ -2234,18 +2785,18 @@ if [[ "$resume" != "y" ]]; then
 	logconfig "$vars_file" > $filepath/logs/$typevar-config.txt
 	#Save ngineer options
 	if [[ "$ngineer_mode" == true ]]; then
-		echo "ngineer_mode=\"$ngineer_mode\" ngineer_ports_default=\"$ngineer_ports_default\" ngineer_udpa_default=\"$ngineer_udpa_default\" ngineer_tcps_default=\"$ngineer_tcps_default\" ngineer_udps_default=\"$ngineer_udps_default\" zreng_ports_opts=\"$zreng_ports_opts\" zreng_udpa_opts=\"$zreng_udpa_opts\" zreng_tcps_opts=\"$zreng_tcps_opts\" zreng_udps_opts=\"$zreng_udps_opts\"" >> "$vars_file"
+		echo "ngineer_mode=\"$ngineer_mode\" ngineer_ports_default=\"$ngineer_ports_default\" ngineer_udpa_default=\"$ngineer_udpa_default\" ngineer_tcps_default=\"$ngineer_tcps_default\" ngineer_udps_default=\"$ngineer_udps_default\" z0eng_ports_opts=\"$z0eng_ports_opts\" z0eng_udpa_opts=\"$z0eng_udpa_opts\" z0eng_tcps_opts=\"$z0eng_tcps_opts\" z0eng_udps_opts=\"$z0eng_udps_opts\"" >> "$vars_file"
 	fi
 fi
 
 #cd to the output dir for better masscan resuming
 cd $filepath
 #Sets trap for when script stops before finishing
-trap whenstopped INT TERM
+trap whenkilled INT TERM
 
 #Start scans
 echo -e "\e[35m \n [=] Zero-E started -- progress updates for scans displayed every 15 minutes \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-zre_started=true
+z0e_started=true
 #==================================
 #=============EXTERNAL=============
 #==================================
@@ -2277,7 +2828,7 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 			#	if [[ "$ngineer_default" == true ]]; then	
 			#		eval "$ntdscan" 1>>"$filepath/logs/misc-files/$typevar-discoscan-nmap.gnmap" 2>>"$filepath/logs/$typevar-errors.log" &  #TCP ping scan
 			#	else
-			#		eval "$zreng_ext_alives - -oG --excludefile $nostrikes -iL $ips" 1>>"$filepath/logs/misc-files/$typevar-discoscan-nmap.gnmap" 2>>"$filepath/logs/$typevar-errors.log" &
+			#		eval "$z0eng_ext_alives - -oG --excludefile $nostrikes -iL $ips" 1>>"$filepath/logs/misc-files/$typevar-discoscan-nmap.gnmap" 2>>"$filepath/logs/$typevar-errors.log" &
 			#	fi
 			#else
 				eval "$ntdscan" 1>>"$filepath/logs/misc-files/$typevar-discoscan-nmap.gnmap" 2>>"$filepath/logs/$typevar-errors.log" &
@@ -2338,8 +2889,8 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 				if [[ "$ngineer_ports_default" == true ]]; then	
 					eval "$emscan" >> "$filepath/logs/misc-files/$typevar-masscan-tcp.log" 2>&1 &
 				else
-					echo -e "\e[33m [!] Using ZrE ngineer options for masscan discovery scan \e[0m"
-					eval "masscan $zreng_ports_opts --open-only --excludefile $nostrikes --include-file $ips -oG $filepath/logs/misc-files/$typevar-discoscan-masscan-tcp.txt" >> "$filepath/logs/misc-files/$typevar-masscan-tcp.log" 2>&1 &
+					echo -e "\e[33m [!] Using z0e ngineer options for masscan discovery scan \e[0m"
+					eval "masscan $z0eng_ports_opts --open-only --excludefile $nostrikes --include-file $ips -oG $filepath/logs/misc-files/$typevar-discoscan-masscan-tcp.txt" >> "$filepath/logs/misc-files/$typevar-masscan-tcp.log" 2>&1 &
 				fi
 			else
 				eval "$emscan" >> "$filepath/logs/misc-files/$typevar-masscan-tcp.log" 2>&1 &
@@ -2416,8 +2967,8 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 				if [[ "$ngineer_udpa_default" == true ]]; then	
 					eval "$nudpa" >> $filepath/logs/misc-files/$typevar-discoscan-nmap-udp.log 2>>"$filepath/logs/$typevar-errors.log" &
 				else
-					echo -e "\e[33m [!] Using ZrE ngineer options for Nmap UDP discovery scan \e[0m"
-					eval "nmap -sU --open $zreng_udpa_opts -oG "$filepath/logs/misc-files/$typevar-discoscan-nmap-udp.gnmap" --excludefile $nostrikes -iL $ips -d" >> "$filepath/logs/misc-files/$typevar-discoscan-nmap-udp.log" 2>>"$filepath/logs/$typevar-errors.log" &
+					echo -e "\e[33m [!] Using z0e ngineer options for Nmap UDP discovery scan \e[0m"
+					eval "nmap -sU --open $z0eng_udpa_opts -oG "$filepath/logs/misc-files/$typevar-discoscan-nmap-udp.gnmap" --excludefile $nostrikes -iL $ips -d" >> "$filepath/logs/misc-files/$typevar-discoscan-nmap-udp.log" 2>>"$filepath/logs/$typevar-errors.log" &
 				fi
 			else
 				eval "$nudpa" >> $filepath/logs/misc-files/$typevar-discoscan-nmap-udp.log 2>>"$filepath/logs/$typevar-errors.log" &
@@ -2467,7 +3018,7 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 			rangeout="$filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt"
 			singleportstorange
 			cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt > $filepath/$typevar-openPorts.txt
-			sed -i 's/^/TCP\//' $filepath/$typevar-openPorts.txt
+			sed -i 's/^/TCP\//' "$filepath/$typevar-openPorts.txt"
 			#echo ' ' >> $filepath/$typevar-openPorts.txt
 		fi
 		if [ "$udp" = "y" ] || [ "$udp" = "yes" ] || [ "$U_opt" = true ]; then
@@ -2526,8 +3077,8 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 					if [[ "$ngineer_tcps_default" == true ]]; then	
 						eval "$entscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 					else
-						echo -e "\e[33m [!] Using ZrE ngineer options for Nmap TCP service scan \e[0m"
-						eval "nmap $zreng_tcps_opts -sV -Pn -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt | paste -sd "," -) -oA $filepath/$typevar-tcp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+						echo -e "\e[33m [!] Using z0e ngineer options for Nmap TCP service scan \e[0m"
+						eval "nmap $z0eng_tcps_opts -sV -Pn -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt | paste -sd "," -) -oA $filepath/$typevar-tcp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 					fi
 				else
 					eval "$entscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
@@ -2595,8 +3146,8 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 					if [[ "$ngineer_udps_default" == true ]]; then	
 						eval "$nsudp" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 					else
-						echo -e "\e[33m [!] Using ZrE ngineer options for Nmap UDP service scan \e[0m"
-						eval "nmap $zreng_udps_opts -sU -sV -Pn --reason -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-udp.txt | paste -sd "," -) -oA $filepath/$typevar-udp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+						echo -e "\e[33m [!] Using z0e ngineer options for Nmap UDP service scan \e[0m"
+						eval "nmap $z0eng_udps_opts -sU -sV -Pn --reason -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-udp.txt | paste -sd "," -) -oA $filepath/$typevar-udp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 					fi
 				else
 					eval "$nsudp -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
@@ -2636,7 +3187,7 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 	status_msg="[=] Zero-E completed -- happy hacking!"
 	echo -e "\e[35m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 	ntfy "$status_msg"
-	zrecleanup
+	z0ecleanup
 fi
 #================================
 #===========INTERNAL=============
@@ -2733,7 +3284,7 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 				#Remove firewall rule
 				removefirewallrule
 				echo -e "\e[33m [!] Exiting Zero-E... \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-				zrecleanup
+				z0ecleanup
 				exit 1
 			fi
 		else
@@ -2742,7 +3293,7 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 				#Remove firewall rule
 				removefirewallrule
 				echo -e "\e[33m [!] Exiting Zero-E... \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
-				zrecleanup
+				z0ecleanup
 				exit 1
 			fi
 		fi
@@ -2786,11 +3337,11 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 					fi
 					eval "$imscan" >> "$filepath/logs/misc-files/$typevar-masscan-tcp.log" 2>&1 &
 				else
-					echo -e "\e[33m [!] Using ZrE ngineer options for masscan open ports scan \e[0m"
+					echo -e "\e[33m [!] Using z0e ngineer options for masscan open ports scan \e[0m"
 					if [[ "$firewallset" != true ]]; then
 						setfirewallrule
 					fi
-					eval "masscan $zreng_ports_opts --open-only --excludefile $nostrikes --include-file $filepath/$typevar-alives.txt -oG $filepath/logs/misc-files/$typevar-discoscan-masscan-tcp.txt" >> "$filepath/logs/misc-files/$typevar-masscan-tcp.log" 2>&1 &
+					eval "masscan $z0eng_ports_opts --open-only --excludefile $nostrikes --include-file $filepath/$typevar-alives.txt -oG $filepath/logs/misc-files/$typevar-discoscan-masscan-tcp.txt" >> "$filepath/logs/misc-files/$typevar-masscan-tcp.log" 2>&1 &
 				fi
 			else
 				if [[ "$firewallset" != true ]]; then
@@ -2860,11 +3411,11 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 					fi	
 					eval "$nudpa" >> $filepath/logs/misc-files/$typevar-discoscan-nmap-udp.log 2>> $filepath/logs/$typevar-errors.log &
 				else
-					echo -e "\e[33m [!] Using ZrE ngineer options for Nmap UDP discovery scan \e[0m"
+					echo -e "\e[33m [!] Using z0e ngineer options for Nmap UDP discovery scan \e[0m"
 					if [[ -f $filepath/logs/misc-files/$typevar-discoresults.txt ]]; then
-						eval "nmap -sU --open $zreng_udpa_opts -oG $filepath/logs/misc-files/$typevar-discoscan-nmap-udp.gnmap --excludefile $nostrikes -iL $filepath/logs/misc-files/$typevar-discoresults.txt -d" >> $filepath/logs/misc-files/$typevar-discoscan-nmap-udp.log 2>> $filepath/logs/$typevar-errors.log &
+						eval "nmap -sU --open $z0eng_udpa_opts -oG $filepath/logs/misc-files/$typevar-discoscan-nmap-udp.gnmap --excludefile $nostrikes -iL $filepath/logs/misc-files/$typevar-discoresults.txt -d" >> $filepath/logs/misc-files/$typevar-discoscan-nmap-udp.log 2>> $filepath/logs/$typevar-errors.log &
 					else
-						eval "nmap -sU --open $zreng_udpa_opts -oG $filepath/logs/misc-files/$typevar-discoscan-nmap-udp.gnmap --excludefile $nostrikes -iL $ips -d" >> $filepath/logs/misc-files/$typevar-discoscan-nmap-udp.log 2>> $filepath/logs/$typevar-errors.log &
+						eval "nmap -sU --open $z0eng_udpa_opts -oG $filepath/logs/misc-files/$typevar-discoscan-nmap-udp.gnmap --excludefile $nostrikes -iL $ips -d" >> $filepath/logs/misc-files/$typevar-discoscan-nmap-udp.log 2>> $filepath/logs/$typevar-errors.log &
 					fi
 				fi
 			else
@@ -2982,8 +3533,8 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 					if [[ "$ngineer_tcps_default" == true ]]; then	
 						eval "$intscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 					else
-						echo -e "\e[33m [!] Using ZrE ngineer options for Nmap TCP service scan \e[0m"
-						eval "nmap $zreng_tcps_opts -sV -Pn -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt | paste -sd "," -) -oA $filepath/$typevar-tcp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+						echo -e "\e[33m [!] Using z0e ngineer options for Nmap TCP service scan \e[0m"
+						eval "nmap $z0eng_tcps_opts -sV -Pn -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt | paste -sd "," -) -oA $filepath/$typevar-tcp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 					fi
 				else
 					eval "$intscan -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
@@ -3051,8 +3602,8 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 					if [[ "$ngineer_udps_default" == true ]]; then	
 						eval "$nsudp" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 					else
-						echo -e "\e[33m [!] Using ZrE ngineer options for Nmap UDP service scan \e[0m"
-						eval "nmap $zreng_udps_opts -sU -sV -Pn --reason -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-udp.txt | paste -sd "," -) -oA $filepath/$typevar-udp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
+						echo -e "\e[33m [!] Using z0e ngineer options for Nmap UDP service scan \e[0m"
+						eval "nmap $z0eng_udps_opts -sU -sV -Pn --reason -p $(cat $filepath/logs/misc-files/$typevar-portsfornmap-udp.txt | paste -sd "," -) -oA $filepath/$typevar-udp-servicescan-results --excludefile $nostrikes -iL $filepath/$typevar-alives.txt" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
 					fi
 				else
 					eval "$nsudp -v" 1>/dev/null 2>>$filepath/logs/$typevar-errors.log &
@@ -3096,5 +3647,5 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 	status_msg="[=] Zero-E completed -- happy hacking!"
 	echo -e "\e[35m $status_msg \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 	ntfy "$status_msg"
-	zrecleanup
+	z0ecleanup
 fi

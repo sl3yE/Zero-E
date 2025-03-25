@@ -30,7 +30,7 @@ exitstatus=$?
 
 if [ $exitstatus -eq 0 ]; then
     echo -e "\e[32m [+] Zero-E copied to $install_dir/zeroe \e[0m"
-    echo -e "\e[36m [-] Zero-E can now be ran with '\e[32mzeroe [options]\e[36m' from anywhere, as you would any other command \e[0m"
+    echo -e "\e[36m [-] Zero-E can now be invoked as a command with \e[32mzeroe\e[36m \e[0m"
 else
-    echo -e "\e[31m [!] Failed to install Zero-E \e[0m"
+    echo -e "\e[31m [X] Error: Failed to install Zero-E \e[0m"
 fi
