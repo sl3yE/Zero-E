@@ -142,7 +142,7 @@ AUXILIARY OPTIONS (Enable additional functionality):
 1. Option 1: Pass the `-S` option with no arguments
     - Also include `--session <session_name>` if the initial scan was in a session
 2. Option 2: Run z0e without any options (or with `--session <session_name>`)
-    - At the prompt, enter `y` to resume
+    - At the prompt, enter `r` to resume
 ### Starting at a specified stage
 - Skipping to a specific stage will only work if doing so after running z0e up to that point, and specifying the previous output directory. Skipping will error if running z0e at that stage for the first time, as certain stages require files that won't yet exist.
 - z0e will automatically create backups if it detects important output files that will be overwritten when running subsequent stages.
