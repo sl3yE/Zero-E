@@ -5,7 +5,7 @@
 # Description
 Host discovery and service enumeration are part of every network pentest and routine network check. It's relatively straightforward, and we could all probably do it in our sleep (you will be with this tool). But ensuring thoroughness and accuracy while maximizing efficiency is a tedious process that requires attentiveness. Zero-E (z0e) aims to automate this process in a fire-and-forget manner to free up your attention, enabling you to work on other things and save valuable time. It uses a thoughtful, extensively-tested methodology that balances thoroughness, accuracy, and efficiency. Among many other functions, it generates multiple files for various analysis purposes and easy post-scan target acquisition. 
 
-Zero in on your environment with zero experience required, taking you from zero to elite-- ...ok you get it. It's zero effort, zero error network enumeration made easy. So embrace your inner script kiddie, sit back in your reclining ergonomic chair, and take a nap while Zero-E does your work for you.
+Zero in on your environment with zero experience required, taking you from zero to elite-- ...ok you get it. It's zero effort, zero error network enumeration made e-z. So embrace your inner script kiddie, sit back in your reclining ergonomic chair, and take a nap while Zero-E does your work for you.
 
 Please consider supporting this project (especially if using it for commercial or business purposes) with Github Sponsor, [BuyMeACoffee](https://www.buymeacoffee.com/inscyght), or Bitcoin (wallet address: 37Gofs5XGv8zB8odoFTJLv8NZk9TvwSr3i)
 
@@ -20,7 +20,7 @@ Please consider supporting this project (especially if using it for commercial o
 1. Allows for enabling or disabling UDP scans
 1. Detects, alerts on, and excludes from service scans hosts with more than 100 ports open
    - It's highly unusual for a host to have this many ports open and indicates a possible deception host or firewall affecting scan results
-1. Accepts command switches, but reverts to interactive prompts if required switches are left out
+1. Accepts command options, but reverts to interactive prompts if required options are left out
 1. Performs a plethora of checks and includes functions to prevent as many potential scan errors as possible
 1. Integrated [ntfy](https://github.com/binwiederhier/ntfy) functionality for sending notifications to your devices
     - Useful for large networks with long scan times
