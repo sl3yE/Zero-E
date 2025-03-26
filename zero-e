@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 banner="Zero-E (z0e) by @Inscyght"
-version="v1.4"
+version="v1.4.0.1"
 ###Functions
 function updatecheck { # Check version and update the script
     {   
@@ -3018,8 +3018,7 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 			rangeout="$filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt"
 			singleportstorange
 			cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt > $filepath/$typevar-openPorts.txt
-			sed -i 's/^/TCP\//' "$filepath/$typevar-openPorts.txt"
-			#echo ' ' >> $filepath/$typevar-openPorts.txt
+			sed -i 's/$/\/TCP/' "$filepath/$typevar-openPorts.txt"
 		fi
 		if [ "$udp" = "y" ] || [ "$udp" = "yes" ] || [ "$U_opt" = true ]; then
 			if [[ "$only_flag" == true ]]; then
@@ -3035,7 +3034,7 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 			rangeout="$filepath/logs/misc-files/$typevar-portsfornmap-udp.txt"
 			singleportstorange
 			cat $filepath/logs/misc-files/$typevar-portsfornmap-udp.txt >> $filepath/$typevar-openPorts.txt
-			sed -i '/^TCP\//! s/^/UDP\//' $filepath/$typevar-openPorts.txt
+			sed -i '/\/TCP$/! s/$/\/UDP/' "$filepath/$typevar-openPorts.txt"
 		fi
 		nessusports 2>/dev/null
 
@@ -3476,8 +3475,7 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 			rangeout="$filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt"
 			singleportstorange
 			cat $filepath/logs/misc-files/$typevar-portsfornmap-tcp.txt > $filepath/$typevar-openPorts.txt
-			sed -i 's/^/TCP\//' $filepath/$typevar-openPorts.txt
-			#echo '' >> $filepath/$typevar-openPorts.txt
+			sed -i 's/$/\/TCP/' "$filepath/$typevar-openPorts.txt"
 		fi
 		if [ "$udp" = "y" ] || [ "$udp" = "yes" ] || [ "$U_opt" = true ]; then
 			if [[ "$only_flag" == true ]]; then
@@ -3491,7 +3489,7 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 			rangeout="$filepath/logs/misc-files/$typevar-portsfornmap-udp.txt"
 			singleportstorange
 			cat $filepath/logs/misc-files/$typevar-portsfornmap-udp.txt >> $filepath/$typevar-openPorts.txt
-			sed -i '/^TCP\//! s/^/UDP\//' $filepath/$typevar-openPorts.txt
+			sed -i '/\/TCP$/! s/$/\/UDP/' "$filepath/$typevar-openPorts.txt"
 		fi
 		nessusports 2>/dev/null
 
