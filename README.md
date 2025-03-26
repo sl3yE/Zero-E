@@ -161,7 +161,7 @@ AUXILIARY OPTIONS (Enable additional functionality):
 - discovery-alives
     - The start of the external and internal scan process. 
         - External: runs an Nmap ping scan
-        - Internal: runs masscan with variable (depending on the total number of initial targets)`--top-ports` to discover alive hosts
+        - Internal: runs masscan with variable (depending on the total number of initial targets) `--top-ports` to discover alive hosts
 - discovery-openports 
     - External: runs masscan against all targets to discover alive hosts and open ports
     - Internal: runs masscan against all ports of alives only
@@ -214,5 +214,4 @@ AUXILIARY OPTIONS (Enable additional functionality):
 # Planned improvements
 - Stuff I happen to think of
 - Docker-ization
-- Allowing IP addresses to be passed for targets and excludes (vs requiring a file)
 - Option to automate launching Nessus scans
