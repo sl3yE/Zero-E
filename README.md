@@ -20,7 +20,7 @@ Please consider supporting this project (especially if using it for commercial o
 1. Allows for enabling or disabling UDP scans
 1. Detects, alerts on, and excludes from service scans hosts with more than 100 ports open
    - It's highly unusual for a host to have this many ports open and indicates a possible deception host or firewall affecting scan results
-1. Accepts command switches, but reverts to interactive prompts if required switches are left out
+1. Accepts command options, but reverts to interactive prompts if required options are left out
 1. Performs a plethora of checks and includes functions to prevent as many potential scan errors as possible
 1. Integrated [ntfy](https://github.com/binwiederhier/ntfy) functionality for sending notifications to your devices
     - Useful for large networks with long scan times
