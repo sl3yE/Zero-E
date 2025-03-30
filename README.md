@@ -51,7 +51,7 @@ Please consider supporting this project (especially if using it for commercial o
 1. `sudo ./zero-e` 
 2. At the prompts, enter:
     1. the stage to start at
-    1. the scan type (e.g. [i]nternal or [e]xternal)
+    1. the scan type ([i]nternal or [e]xternal)
     1. whether to enable UDP scans
     1. the desired file path of the output directory for generated files
     1. the file path of the file(s) containing the target IP addresses and/or single IP addresses, ranges, or CIDRs (comma-separated, e.g. targets.txt,1.1.1.1/24)
