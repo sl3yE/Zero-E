@@ -3,7 +3,7 @@
 </p>
 
 # Description
-Host discovery and service enumeration are part of every network pentest and routine network check. It's relatively straightforward, and we could all probably do it in our sleep (you will be with this tool). But ensuring thoroughness and accuracy while maximizing efficiency is a tedious process that requires attentiveness. Zero-E (z0e) aims to automate this process in a fire-and-forget manner to free up your attention, enabling you to work on other things and save valuable time. It uses a thoughtful, extensively-tested methodology that balances thoroughness, accuracy, and efficiency. Among many other functions, it generates multiple files for various analysis purposes and easy post-scan target acquisition. 
+Host discovery and service enumeration are part of every network pentest and routine network check. It's relatively straightforward, and some could probably do it while sleeping (you will be with this tool). But ensuring thoroughness and accuracy while maximizing efficiency is a tedious process that requires attentiveness. Zero-E (z0e) aims to automate this process in a fire-and-forget manner to free up your attention, enabling you to work on other things and save valuable time. It uses a thoughtful, extensively-tested methodology that balances thoroughness, accuracy, and efficiency. Among many other functions, it generates multiple files for various analysis purposes and easy post-scan target acquisition. 
 
 Zero in on your environment with zero experience required, taking you from zero to elite-- ...ok you get it. It's zero effort, zero error network enumeration made e-z. So embrace your inner script kiddie, sit back in your reclining ergonomic chair, and take a nap while Zero-E does your work for you.
 
