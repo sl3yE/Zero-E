@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 banner="Zero-E (z0e) by @Inscyght"
-version="v1.4.0.1"
+version="v1.4.0.2"
 ###Functions
 function updatecheck { # Check version and update the script
     {   
@@ -749,7 +749,7 @@ function stageinit { # The checkpoint system
 	mkdir -p /var/lib/zeroe
 
 	function checkinvalidstage { # Defines the function to check for an invalid stage
-		if [[ "$stage" = "script-start" || "$stage" = "discovery-ports" || "$stage" = "discovery-alives" || "$stage" = "discovery-udp" || "$stage" = "discovery-lists" || "$stage" = "services-tcp" || "$stage" = "services-udp" ]]; then
+		if [[ "$stage" = "script-start" || "$stage" = "discovery-ports" || "$stage" = "discovery-hosts" || "$stage" = "discovery-udp" || "$stage" = "discovery-lists" || "$stage" = "services-tcp" || "$stage" = "services-udp" ]]; then
 			return 0
 		else	
 			echo -e "\e[31m [X] Error: Invalid stage '$stage' -- check help or README for valid stages \e[0m" >&2
@@ -821,7 +821,7 @@ function stageinit { # The checkpoint system
 		echo "[?] <R>esume from '$(cat "$stage_file")', start a <n>ew scan, or specify stage:"
 		while true; do
 			read -e -p " [>] " stage
-			if [[ "$stage" != "script-start" && "$stage" != "discovery-ports" && "$stage" != "discovery-alives" && "$stage" != "discovery-udp" && "$stage" != "discovery-lists" && "$stage" != "services-tcp" && "$stage" != "services-udp" && "$stage" != "R" && "$stage" != "r"  && "$stage" != "Resume" && "$stage" != "resume"  && "$stage" != "n" && "$stage" != "new" ]]; then
+			if [[ "$stage" != "script-start" && "$stage" != "discovery-ports" && "$stage" != "discovery-hosts" && "$stage" != "discovery-udp" && "$stage" != "discovery-lists" && "$stage" != "services-tcp" && "$stage" != "services-udp" && "$stage" != "R" && "$stage" != "r"  && "$stage" != "Resume" && "$stage" != "resume"  && "$stage" != "n" && "$stage" != "new" ]]; then
 				echo -e "\e[31m [X] Error: Invalid stage '$stage' -- check help or README for valid stages \e[0m" >&2
 			elif [[ "$stage" = "n" || "$stage" = "new" ]]; then
 				stage="script-start"
@@ -845,7 +845,7 @@ function stageinit { # The checkpoint system
 			fi
 		done
 	elif [[ -n "$S_opt" ]]; then # Start at the specified stage
-		if [[ "$S_opt" = "script-start" || "$S_opt" = "discovery-ports" || "$S_opt" = "discovery-alives" || "$S_opt" = "discovery-udp" || "$S_opt" = "discovery-lists" || "$S_opt" = "services-tcp" || "$S_opt" = "services-udp" ]]; then
+		if [[ "$S_opt" = "script-start" || "$S_opt" = "discovery-ports" || "$S_opt" = "discovery-hosts" || "$S_opt" = "discovery-udp" || "$S_opt" = "discovery-lists" || "$S_opt" = "services-tcp" || "$S_opt" = "services-udp" ]]; then
 			stage="$S_opt"
 			echo "$(pwd)" > "$initdir_file"
 			if [[ "$only_flag" == true && "$S_opt" == "discovery-udp" ]]; then
@@ -873,7 +873,7 @@ function stagefilescheck { #Checks if required files are present for the specifi
 	#Defines required files for each stage
 	if [[ "$e_opt" = true || "$type" = "E" || "$type" = "e" || "$type" = "external" || "$type" = "External" || "$type" = "Ext" || "$type" = "ext" ]]; then
     	case "$stage" in
-    		"discovery-alives")
+    		"discovery-hosts")
     			checkstagefiles "$nostrikes" "$ips"
     			;;
     		"discovery-ports")
@@ -908,7 +908,7 @@ function stagefilescheck { #Checks if required files are present for the specifi
     	esac
   	elif [[ "$i_opt" = true || "$type" = "I" || "$type" = "i" || "$type" = "internal" || "$type" = "Internal" || "$type" = "Int" || "$type" = "int" ]]; then
     	case "$stage" in
-    		"discovery-alives")
+    		"discovery-hosts")
     			checkstagefiles "$nostrikes" "$ips"
     			;;
     		"discovery-ports")
@@ -2336,7 +2336,7 @@ if [ "$help_flag" = true ]; then
 	echo "  -S [stage]              If no stage provided, resume from saved stage (cannot be used with -s)"
 	echo "                            If stage provided, skip to the specified stage"
 	echo "                            Available stages:"
-	echo "                              - discovery-alives (TCP-only)"
+	echo "                              - discovery-hosts (TCP-only)"
 	echo "                              - discovery-ports (TCP-only)"
 	echo "                              - discovery-udp"
 	echo "                              - discovery-lists"
@@ -2803,11 +2803,11 @@ z0e_started=true
 if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = "external" ] || [ "$type" = "External" ] || [ "$type" = "Ext" ] || [ "$type" = "ext" ]; then
 
 	#Stage -- start
-	if { [[ "$stage" == "discovery-alives" ]] || [[ "$stage" == "script-start" ]]; } && ! { [[ "$udp" == "y" ]] && [[ "$only_flag" == true ]]; }; then
-		echo "discovery-alives" > "$stage_file"
-		stage="discovery-alives"
+	if { [[ "$stage" == "discovery-hosts" ]] || [[ "$stage" == "script-start" ]]; } && ! { [[ "$udp" == "y" ]] && [[ "$only_flag" == true ]]; }; then
+		echo "discovery-hosts" > "$stage_file"
+		stage="discovery-hosts"
 
-		if [[ "$stage" == "discovery-alives" ]] && [[ "$resume" = "y" ]]; then
+		if [[ "$stage" == "discovery-hosts" ]] && [[ "$resume" = "y" ]]; then
 			echo -e "\e[36m [-] Resuming alive host discovery scans -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 			echo -e "\e[36m     Using options from resumed scan \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 		else
@@ -2850,7 +2850,7 @@ if [ "$e_opt" = true ] || [ "$type" = "E" ] || [ "$type" = "e" ] || [ "$type" = 
 		ntfy "$status_msg"
 		#Generate alives file
 		cat "$filepath/logs/misc-files/$typevar-discoscan-nmap.gnmap" | grep 'Up' | awk '{print $2}' | sort -u | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n > $filepath/$typevar-alives.txt
-		if [[ "$stage" == "discovery-alives" ]] && [[ "$only_flag" == true ]]; then	
+		if [[ "$stage" == "discovery-hosts" ]] && [[ "$only_flag" == true ]]; then	
 			if grep -q "\S" "$filepath/$typevar-alives.txt"; then
 				echo "" | tee -a "$filepath/logs/$typevar-timestamps.log"
 				status_msg="[+] Alive hosts discovered -- $(date)"
@@ -3194,12 +3194,12 @@ fi
 if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = "internal" ] || [ "$type" = "Internal" ] || [ "$type" = "Int" ] || [ "$type" = "int" ]; then
 
 	#Stage -- start
-	if { [[ "$stage" == "discovery-alives" ]] || [[ "$stage" == "script-start" ]]; } && ! { [[ "$udp" == "y" ]] && [[ "$only_flag" == true ]]; }; then
-		echo "discovery-alives" > "$stage_file"
-		stage="discovery-alives"
+	if { [[ "$stage" == "discovery-hosts" ]] || [[ "$stage" == "script-start" ]]; } && ! { [[ "$udp" == "y" ]] && [[ "$only_flag" == true ]]; }; then
+		echo "discovery-hosts" > "$stage_file"
+		stage="discovery-hosts"
 
 		#cidrconvert >> $filepath/logs/$typevar-fpingcidrs.txt
-		if [[ "$stage" == "discovery-alives" ]] && [[ "$resume" = "y" ]]; then
+		if [[ "$stage" == "discovery-hosts" ]] && [[ "$resume" = "y" ]]; then
 			resume="y"
 			echo -e "\e[36m [-] Resuming alive host discovery scans -- $(date) \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 			echo -e "\e[36m     Using options from resumed scan \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
@@ -3211,11 +3211,11 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 
 		#Masscan alive host discovery
 		alivesmscan="sudo masscan --rate=8000 --src-port=55555 --excludefile $nostrikes --include-file $ips -oG $filepath/logs/misc-files/$typevar-masscanalives-results.txt"
-		if [[ "$stage" == "discovery-alives" ]] && [[ -f "$(pwd)/paused.conf" ]] && [[ "$resume" = "y" ]]; then
+		if [[ "$stage" == "discovery-hosts" ]] && [[ -f "$(pwd)/paused.conf" ]] && [[ "$resume" = "y" ]]; then
 			resume=''
 			{ masscan --resume paused.conf >> "$filepath/logs/misc-files/$typevar-masscan-tcp.log" 2>&1 & } && sleep 2
-		elif [[ "$stage" == "discovery-alives" ]] || [[ "$stage" == "discovery-alives" && ! -f "$(pwd)/paused.conf" && "$resume" = "y" ]]; then
-			if [[ "$stage" == "discovery-alives" && ! -f "$(pwd)/paused.conf" && "$resume" = "y" ]]; then
+		elif [[ "$stage" == "discovery-hosts" ]] || [[ "$stage" == "discovery-hosts" && ! -f "$(pwd)/paused.conf" && "$resume" = "y" ]]; then
+			if [[ "$stage" == "discovery-hosts" && ! -f "$(pwd)/paused.conf" && "$resume" = "y" ]]; then
 				echo -e "\e[33m [!] masscan paused.conf file not found -- restarting alive host discovery scans \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 			fi
 			#fpscan='while IFS= read -r i; do fping -a -q -g "$i" >> "$#filepath/$typevar-fping-results.txt"; done < "$filepath/logs/$typevar-fpingcidrs.txt"'
@@ -3275,7 +3275,7 @@ if [ "$i_opt" = true ] || [ "$type" = "I" ] || [ "$type" = "i" ] || [ "$type" = 
 
 		#Generate alives file
 		cat "$filepath/logs/misc-files/$typevar-discoresults.txt" | sort -u | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n > "$filepath/$typevar-alives.txt"
-		if [[ "$stage" == "discovery-alives" ]] && [[ "$only_flag" == true ]]; then
+		if [[ "$stage" == "discovery-hosts" ]] && [[ "$only_flag" == true ]]; then
 			if grep -q "\S" "$filepath/$typevar-alives.txt"; then
 				echo -e "\e[32m [+] Alive hosts discovered -- "$(date)" \e[0m" | tee -a "$filepath/logs/$typevar-timestamps.log"
 			else

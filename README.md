@@ -84,7 +84,7 @@ PRIMARY OPTIONS (z0e will prompt for these if not provided):
   -S [stage]              If no stage provided, resume from saved stage (cannot be used with -s)
                             If stage provided, skip to the specified stage
                             Available stages:
-                              - discovery-alives (TCP-only)
+                              - discovery-hosts (TCP-only)
                               - discovery-ports (TCP-only)
                               - discovery-udp
                               - discovery-lists
@@ -158,11 +158,11 @@ AUXILIARY OPTIONS (Enable additional functionality):
 
 **Stages and explanations:**
 
-- discovery-alives
+- discovery-hosts
     - The start of the external and internal scan process. 
         - External: runs an Nmap ping scan
         - Internal: runs masscan with variable (depending on the total number of initial targets) `--top-ports` to discover alive hosts
-- discovery-openports 
+- discovery-ports 
     - External: runs masscan against all targets to discover alive hosts and open ports
     - Internal: runs masscan against all ports of alives only
 - discovery-udp 
