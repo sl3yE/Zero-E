@@ -169,9 +169,9 @@ AUXILIARY OPTIONS (Enable additional functionality):
     - If UDP is enabled, runs Nmap against alives to discover open UDP ports
 - discovery-lists 
     - Creates the alives list and open ports list
-- servicescan-tcp 
+- services-tcp 
      - Runs an in-depth Nmap service scan against alive hosts and open TCP ports 
-- servicescan-udp 
+- services-udp 
     - Runs an in-depth Nmap service scan against alive hosts and open UDP ports 
 
 # Methodology
