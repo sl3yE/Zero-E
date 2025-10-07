@@ -189,44 +189,50 @@ If required primary options aren't provided, Zero‑E will interactively prompt.
 3. Embrace your inner script kiddie, sit back in your reclining ergonomic chair, and take a nap while z0e does your work for you
 
 ## Stage system
-- The stage function allows for resuming from the automatically saved stage, or from a specified stage
-- If resuming a stage, it resumes both masscan and Nmap scans from exactly where they left off
-- If creating a session with `--session`, each session will have its own saved stage
-### Resuming from a saved stage
-1. Option 1: Pass the `-S` option with no arguments
-    - Also include `--session <session_name>` if the initial scan was in a session
-2. Option 2: Run z0e without any options (or with `--session <session_name>`)
-    - At the prompt, enter `r` to resume
-### Starting at a specified stage
-- Skipping to a specific stage will only work if doing so after running z0e up to that point, and specifying the previous output directory. Skipping will error if running z0e at that stage for the first time, as certain stages require files that won't yet exist.
-- z0e will automatically create backups if it detects important output files that will be overwritten when running subsequent stages.
+The workflow is segmented into discrete, resumable stages. A lightweight checkpoint file records progress; resuming picks up exactly where a stage left off (masscan via its own `paused.conf`, Nmap via internal progress ledger / append output). Each session (`--session <name>`) maintains its own independent stage & variable files.
 
-**Option 1:** 
+### Core concepts
+- Forward-only progression: stages advance in the order shown below; you can resume or skip forward, but skipping requires prerequisite artifacts.
+- Backups: If a skip or re-run would overwrite critical outputs, a timestamped backup directory is created before proceeding.
+- Sessions: Provide isolation so simultaneous or historical engagements don't collide.
 
-- Pass the `-S` option with the desired stage name
+### Resuming
+Two equivalent ways:
+1. `-S` with no argument (and optional `--session <name>`): auto-detect saved stage and continue.
+2. Run without the `-S` and choose Resume at the prompt (`r`).
 
-**Option 2:** 
+### Specifying a stage
+Use `-S <stage>` (optionally with `--session <name>`). The script validates required inputs (alive hosts list, open ports list, etc.). If anything is missing it aborts with guidance.
 
-- Run z0e without any options
-    - At the prompt, enter the desired stage name
+### Stages
+Ordered progression:
+1. discovery-hosts
+   - Identify responsive hosts.
+   - External path: batched Nmap `-sn` with tuned probes.
+   - Internal path (<25k targets): Nmap `-sn` with tiered tuning; (>=25k) tiered masscan `--top-ports` with temporary firewall rule.
+2. discovery-ports
+   - External/Internal: masscan full 0-65535 ports against discovered alive targets.
+3. discovery-udp (optional)
+   - If UDP enabled: Nmap (external) or higher-rate Nmap (internal) enumerates candidate open UDP ports (default curated/top ports sets).
+4. discovery-lists
+   - Consolidate raw discovery output into canonical: alive hosts file, open TCP ports list, open UDP ports list (if enabled), Nessus-formatted ports list; filter >100 open TCP-port hosts.
+5. services-tcp
+   - In-depth Nmap service/version/OS scan across alive hosts & open TCP ports (grouped-port optimization).
+6. services-udp (optional)
+   - In-depth Nmap service/version scan across alive hosts & open UDP ports (when enabled).
+7. methodology
+   - Generate report-ready AsciiDoc methodology, appendices (ports, hosts, host→ports), DNS mapping.
 
-**Stages and explanations:**
+### Quick reference: choosing an entry point
+- Fresh start: omit `-S`/`-s` (or use `-s` explicitly) -> begins at discovery-hosts.
+- Resume: `-S` with no value OR interactive resume prompt.
+- Generate reporting only: `-S methodology --only` (after scans already completed) pointing at the existing output directory.
+- Add UDP later: `--only -U`.
 
-- discovery-hosts
-    - The start of the external and internal scan process. 
-        - External: runs an Nmap ping scan
-        - Internal: runs masscan with variable (depending on the total number of initial targets) `--top-ports` to discover alive hosts
-- discovery-ports 
-    - External: runs masscan against all targets to discover alive hosts and open ports
-    - Internal: runs masscan against all ports of alives only
-- discovery-udp 
-    - If UDP is enabled, runs Nmap against alives to discover open UDP ports
-- discovery-lists 
-    - Creates the alives list and open ports list
-- services-tcp 
-     - Runs an in-depth Nmap service scan against alive hosts and open TCP ports 
-- services-udp 
-    - Runs an in-depth Nmap service scan against alive hosts and open UDP ports 
+### Best practices
+- Always supply the original output directory (`-o`) when skipping so derived files are found.
+- Avoid skipping directly to services-* on a brand-new directory -- discovery artifacts must already exist.
+- Use sessions for each distinct client/network to prevent accidental cross-contamination of stage files.
 
 # Methodology
 The methodology below reflects the current in-script logic (including dynamic adjustments, batching, resume support, and optional ngineer overrides). Angle brackets denote variable values determined at runtime.
