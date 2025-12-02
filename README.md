@@ -36,7 +36,7 @@ Resilience & safeguards
 1. Ephemeral firewall rule insertion during internal masscan to suppress unwanted RSTs (`masscan --src-port 55555`) and safe removal afterward.
 1. Output commit phase: automatic backup of important artifacts when re‑running or stage‑skipping; avoids accidental data loss.
 
-Reporting & analysis
+Targeting & analysis
 1. Primary output files include alive hosts, open ports, Nessus-compatible ports listing, Nmap service scan results
 1. Nmap parsing helpers: Windows host extractor, IP ↔ hostname listing, targeted port presence queries, open port CSV for downstream tooling.
 1. Timestamped colorized terminal output plus structured logs in `logs/` and `logs/processed/` for reproducibility & audit.
@@ -81,8 +81,8 @@ In short: Zero‑E focuses on accuracy first, then aggressive efficiency (groupe
     1. the scan type (e.g. [i]nternal or [e]xternal)
     1. whether to enable UDP scans
     1. the desired file path of the output directory for generated files
-    1. the file path of the file(s) containing the target IP addresses and/or single IP addresses, ranges, or CIDRs (comma-separated, e.g. targets.txt,1.1.1.1)
-    1. the file path of the file(s) containing the IP addresses and/or single IP addresses, ranges, or CIDRs (comma-separated, e.g. targets.txt,1.1.1.1) to exclude from scans, if any
+    1. the file path of the file(s) containing the target IP addresses and/or single IP addresses, ranges, CIDRs, or DNS names (comma-separated, e.g. targets.txt,1.1.1.1)
+    1. the file path of the file(s) containing the IP addresses and/or single IP addresses, ranges, CIDRs, or DNS names (comma-separated, e.g. targets.txt,1.1.1.1) to exclude from scans, if any
 3. Embrace your inner script kiddie, sit back in your reclining ergonomic chair, and take a nap while z0e does your work for you
 
 ## Advanced usage
@@ -220,13 +220,10 @@ Ordered progression:
    - In-depth Nmap service/version/OS scan across alive hosts & open TCP ports (grouped-port optimization).
 6. services-udp (optional)
    - In-depth Nmap service/version scan across alive hosts & open UDP ports (when enabled).
-7. methodology
-   - Generate report-ready AsciiDoc methodology, appendices (ports, hosts, host→ports), DNS mapping.
 
 ### Quick reference: choosing an entry point
 - Fresh start: omit `-S`/`-s` (or use `-s` explicitly) -> begins at discovery-hosts.
 - Resume: `-S` with no value OR interactive resume prompt.
-- Generate reporting only: `-S methodology --only` (after scans already completed) pointing at the existing output directory.
 - Add UDP later: `--only -U`.
 
 ### Best practices
