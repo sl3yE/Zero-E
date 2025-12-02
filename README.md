@@ -74,7 +74,7 @@ In short: Zero‑E focuses on accuracy first, then aggressive efficiency (groupe
 
 # How To
 
-Zero-E is designed to have an incredibly easy user experience, with basic usage being all you need for 90% of engagements. But it also has powerful and complex capabilities for advanced users that prefer to run scans in specific ways, while still enjoying the convenience z0e provides through automation.
+Zero-E is designed to have an incredibly easy user experience, with basic usage being all you need for 90% of engagements. But it also has powerful and complex capabilities for advanced users that prefer to run scans in specific ways, while still enjoying the convenience z0e provides through automating the tedious stuff.
 
 ## Basic usage (interactive prompts)
 1. `sudo ./zero-e` 
