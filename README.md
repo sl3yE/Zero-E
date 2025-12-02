@@ -56,7 +56,7 @@ Quality of life
 1. Extensive defensive checks to catch conflicting switches, malformed inputs, privilege issues, and environment gaps early.
 1. Generates ephemeral working lists only when needed and cleans up safely on completion or interruption.
 
-Analysis helpers (ad hoc)
+Targeting helpers (ad hoc)
 1. Count total IPs (`--count-hosts`), generate single‑IP expansions from complex target spec (`--geniplist`), list Windows hosts, parse specific open port sets, create IP/hostname pair lists—all independent utilities available without running a full scan.
 
 In short: Zero‑E focuses on accuracy first, then aggressive efficiency (grouped scans, adaptive batching), while maintaining auditability and useful analysis output generation.
@@ -134,7 +134,7 @@ Stages: `discovery-hosts`, `discovery-ports`, `discovery-udp`, `discovery-lists`
 - `--ntfy [priority,]<server/topic_url>` e.g. `--ntfy 3,https://ntfy.sh/myTopic`.
 - Sends stage start/finish and completion messages; useful for overnight / large internal scopes.
 
-### 10. Utility / analysis helpers (can be run standalone)
+### 10. Utility / targeting helpers (can be run standalone)
 - `--count-hosts <spec>` Count total IPv4 addresses represented by a mixed target specification (files, CIDRs, ranges, IPs, DNS).
 - `--count-ports <openPorts-file>` Count total distinct ports (TCP/UDP aware) in an existing Zero-E openPorts.txt results file.
 - `--dns-ip <spec>` Resolve supplied DNS names (or mixed specs) to IPv4 only and output the flattened list (no scanning). Useful to validate DNS before a large run.
