@@ -82,9 +82,9 @@ Zero-E is designed to have an incredibly easy user experience, with basic usage 
     1. the stage to start at
     1. the scan type (e.g. [i]nternal or [e]xternal)
     1. whether to enable UDP scans
-    1. the desired file path of the output directory for generated files
-    1. the file path of the file(s) containing the target IP addresses and/or single IP addresses, ranges, CIDRs, or DNS names (comma-separated, e.g. targets.txt,1.1.1.1)
-    1. the file path of the file(s) containing the IP addresses and/or single IP addresses, ranges, CIDRs, or DNS names (comma-separated, e.g. targets.txt,1.1.1.1) to exclude from scans, if any
+    1. the desired directory path of the output directory for generated files
+    1. the file path of the file(s) containing the target IP addresses, and/or single IP addresses, ranges, CIDRs, or DNS names (comma-separated, e.g. targets.txt,1.1.1.1)
+    1. the file path of the file(s) containing the IP addresses, and/or single IP addresses, ranges, CIDRs, or DNS names (comma-separated, e.g. targets.txt,1.1.1.1) to exclude from scans, if any
 3. Embrace your inner script kiddie, sit back in your reclining ergonomic chair, and take a nap while z0e does your work for you
 
 ## Advanced usage
