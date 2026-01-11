@@ -260,7 +260,7 @@ The methodology below reflects the current in-script logic (including dynamic ad
 ## Internal
 Internal logic bifurcates on total target count for alive host discovery (<25k uses Nmap; >=25k uses tiered masscan with adaptive `--top-ports`). All internal masscan-based steps insert a temporary firewall rule to suppress RSTs on `--src-port 55555`.
 
-2. Alive host discovery
+1. Alive host discovery
     - If total_hosts 1–24,999 (Nmap path): base command
       - `nmap -n -sn --max-retries 1 --min-parallelism 32 --reason -PR -PE -PP --excludefile <excludes_file> -iL <targets_file> -oA <outdir>/logs/<type>-nmapAlives-results [tiered tuning flags]`
          - Tiered tuning appended automatically:
@@ -273,19 +273,19 @@ Internal logic bifurcates on total target count for alive host discovery (<25k u
       - Set firewall rule:
           - Linux: `sudo iptables -A INPUT -p tcp --dport 55555 -j DROP`
     - Both paths support ngineer overrides (script still appends required include/exclude/output flags).
-3. TCP port discovery (masscan) — alive host list preferred else original targets
+2. TCP port discovery (masscan) — alive host list preferred else original targets
     - `sudo masscan --open-only -p 0-65535 --rate=8000 --src-port=55555 --excludefile <excludes_file> --include-file <alive_or_targets_list> -oG <outdir>/logs/processed/<type>-discoscan-masscan-tcp.txt`
     - Resume supported via `masscan --resume paused.conf`; optional global `--rate` override updates paused.conf.
-4. UDP discovery (Nmap) when enabled (higher internal rates)
+3. UDP discovery (Nmap) when enabled (higher internal rates)
     - `nmap -v -Pn -sU --open --min-rate 3000 --max-rate 5000 --top-ports 15094 --max-retries 3 --host-timeout 30 -oG <outdir>/logs/processed/<type>-discoscan-nmap-udp.gnmap --excludefile <excludes_file> -iL <alive_or_targets_list> -d`
-5. List generation & filtering
+4. List generation & filtering
     - Consolidates discovery results; removes >100 TCP-open hosts from service scans; converts port lists to Nessus & CSV formats.
-6. Remove firewall rule (if it was set)
+5. Remove firewall rule (if it was set)
     - Linux: `sudo iptables -D INPUT -p tcp --dport 55555 -j DROP`
-7. TCP service scans
+6. TCP service scans
     - `nmap -sC -sV -Pn -O -p <csv_tcp_ports> --open --reason -oA <outdir>/<type>-tcp-servicescan-results --excludefile <excludes_file> -iL <alive_hosts_file>`
     - May run in grouped-port mode (groups hosts sharing identical open-port sets) to reduce total Nmap invocations; merged afterward.
-8. UDP service scans (if enabled)
+7. UDP service scans (if enabled)
     - `nmap -v -sU -Pn -sV --open --min-rate 1000 --max-rate 3000 --reason -p <csv_udp_ports> -oA <outdir>/<type>-udp-servicescan-results --excludefile <excludes_file> -iL <alive_hosts_file>`
 
 Notes:
