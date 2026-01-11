@@ -136,7 +136,7 @@ Stages: `discovery-hosts`, `discovery-ports`, `discovery-udp`, `discovery-lists`
 - `--ntfy [priority,]<server/topic_url>` e.g. `--ntfy 3,https://ntfy.sh/myTopic`.
 - Sends stage start/finish and completion messages; useful for overnight / large internal scopes.
 
-### 10. Utility / targeting helpers (can be run standalone)
+### 10. Utility / targeting helpers (can run standalone)
 - `--count-hosts <spec>` Count total IPv4 addresses represented by a mixed target specification (files, CIDRs, ranges, IPs, DNS).
 - `--count-ports <openPorts-file>` Count total distinct ports (TCP/UDP aware) in an existing Zero-E openPorts.txt results file.
 - `--dns-ip <spec>` Resolve supplied DNS names (or mixed specs) to IPv4 only and output the flattened list (no scanning). Useful to validate DNS before a large run.
