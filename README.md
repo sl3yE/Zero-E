@@ -154,9 +154,9 @@ Specify everything for an internal scan & disable UDP (faster first pass):
 ```
 sudo ./zero-e -i -t prod.txt,10.10.0.0/22 -x legacy_excludes.txt -o /data/scan1 -u -s
 ```
-Later run a full UDP-only enumeration after initial TCP: 
+Later run a full UDP-only enumeration after initial TCP with max priority notifications enabled: 
 ```
-sudo ./zero-e -i --only -U -o /data/scan1 -s
+sudo ./zero-e -i --only -U -o /data/scan1 -s --ntfy 5,alerts.mycyber.net
 ```
 Resume a previous session at the saved stage and raise masscan rate:
 ```
